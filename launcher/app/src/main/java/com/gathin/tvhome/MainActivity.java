@@ -1653,6 +1653,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         moreGrid.setAlpha(0f);
         moreGrid.setVisibility(View.VISIBLE);
         moreGrid.animate().alpha(1f).setDuration(180).start();
+        fadeScrollShade(true);
         moreFocused = 0;
         focusMoreTile();
     }
@@ -1676,8 +1677,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (!moreAppsOpen()) return;
         moreGrid.setVisibility(View.GONE);
         moreGrid.setAdapter(null);   // lets go of the grid's tiles; Home's adapter keeps the artwork
-        if (scrollShade != null) updateScrollShade(grid);
         moreAdapter.clear();
+        fadeScrollShade(false);
         showHome(true);
         if (refocus) focusLibrary();
     }
@@ -2096,12 +2097,26 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
     }
 
-    /** scroll_dim: the further this grid has scrolled, up to half a screen, the darker the background behind it. */
+    /**
+     * scroll_dim: the further down the page, the darker the background. More apps sits below Home, so opening it is
+     * already half way down (its few rows may never scroll); scrolling either grid by half a screen goes the rest.
+     */
     private void updateScrollShade(RecyclerView rv) {
         int h = root.getHeight();
         if (h <= 0) return;
         float progress = Math.min(1f, rv.computeVerticalScrollOffset() / (h * 0.5f));
-        scrollShade.setAlpha(scrollDimMax * progress);
+        float down = rv == moreGrid ? 0.5f + 0.5f * progress : progress;
+        scrollShade.animate().cancel();
+        scrollShade.setAlpha(scrollDimMax * down);
+    }
+
+    /** The shade's step when More apps opens or closes, eased over the grid's own fade. */
+    private void fadeScrollShade(boolean moreOpen) {
+        if (scrollShade == null) return;
+        float target = moreOpen ? scrollDimMax * 0.5f
+                : scrollDimMax * Math.min(1f, grid.computeVerticalScrollOffset() / Math.max(1f, root.getHeight() * 0.5f));
+        scrollShade.animate().cancel();
+        scrollShade.animate().alpha(target).setDuration(180).start();
     }
 
     /**

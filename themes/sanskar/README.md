@@ -71,6 +71,7 @@ place name never shows on screen, and `""` turns the weather off.
 
 - `"app_colors"`: the glow colour behind each app, as `#RRGGBB`.
 - `"bottom_shade"`: how dark the bottom of the screen is behind the dock, 0 to 100.
-- `"scroll_dim"`: how much darker the wallpaper gets as you scroll down More apps, 0 to 90.
+- `"scroll_dim"`: how much darker the wallpaper gets in More apps (half of it as it opens, the rest as you scroll),
+  0 to 90.
 
 Every key is described in [`themes/README.md`](../README.md).

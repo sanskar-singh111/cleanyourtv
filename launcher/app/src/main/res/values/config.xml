@@ -198,8 +198,9 @@
     <!-- A black gradient rising from the bottom edge, strongest under the dock, so the app row sits on dark over any
          wallpaper; 0 to 100, its strength at the bottom. 0 draws nothing (default). A theme can set "bottom_shade": 70. -->
     <integer name="bottom_shade">0</integer>
-    <!-- How much darker the background gets as the page scrolls down (Home's grid or the More apps grid), in percent at
-         half a screen of scroll, 0 to 90. 0 is off (default). A theme can set "scroll_dim": 35. -->
+    <!-- How much darker the background gets further down the page, in percent at the bottom, 0 to 90: More apps counts
+         as half way down, and scrolling Home's grid or the More apps grid by half a screen goes the rest. 0 is off
+         (default). A theme can set "scroll_dim": 35. -->
     <integer name="scroll_dim">0</integer>
     <!-- The weather beside the clock: a small outline icon and the temperature in °C from Open-Meteo (free, no key),
          fetched only while Home is in front and at most every 30 minutes. The place name is never shown. "City" or
