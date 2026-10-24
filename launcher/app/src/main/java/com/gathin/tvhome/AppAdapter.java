@@ -237,7 +237,8 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         this.animations = cfg.animations;
         this.advancedEffects = cfg.animations && cfg.advancedEffects;
         this.showHomeSettings = cfg.showHomeSettingsShortcut;
-        this.showLibrary = cfg.appLibrary || cfg.moreApps;
+        // more_apps with library_button: the More apps icon sits in the top bar, so nothing under the dock.
+        this.showLibrary = cfg.appLibrary || cfg.moreApps && !cfg.libraryButton;
         this.moreApps = cfg.moreApps;
         this.reducedMotion = cfg.reducedMotion;
         this.focusOvershoot = cfg.focusOvershoot;

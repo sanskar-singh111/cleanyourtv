@@ -307,6 +307,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private boolean strictDockNav;
     /** config dock_title: the dock app's name above the dock (dock_taglines may show a line there instead). */
     private boolean dockTitleShown;
+    /** tagline_align center; otherwise the line starts where the dock's first logo does. */
+    private boolean taglineCentered;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     /** Refreshes the network pill when the connection changes: at boot Wi-Fi often connects after Home is shown. */
@@ -475,13 +477,17 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         dockTitleShown = cfg.dockTitle;
         taglineVisit = getSharedPreferences(Config.SETTINGS_NAME, MODE_PRIVATE).getInt("tagline_visit", 0);
         if (!cfg.dockTitle && dockTaglines.isEmpty()) hero.setVisibility(View.GONE);
+        taglineCentered = cfg.taglineCentered;
         if (!dockTaglines.isEmpty()) {
-            // A line, not a name: smaller, centred over the dock's floating row.
-            FrameLayout.LayoutParams hlp = (FrameLayout.LayoutParams) hero.getLayoutParams();
-            hlp.width = ViewGroup.LayoutParams.MATCH_PARENT;
-            hlp.setMarginStart(0);
-            hero.setLayoutParams(hlp);
-            ((LinearLayout) hero).setGravity(Gravity.CENTER_HORIZONTAL);
+            // A line, not a name: smaller, centred over the dock's floating row, or (tagline_align left) starting
+            // where its first logo does, which alignTagline works out once the dock is laid out.
+            if (taglineCentered) {
+                FrameLayout.LayoutParams hlp = (FrameLayout.LayoutParams) hero.getLayoutParams();
+                hlp.width = ViewGroup.LayoutParams.MATCH_PARENT;
+                hlp.setMarginStart(0);
+                hero.setLayoutParams(hlp);
+                ((LinearLayout) hero).setGravity(Gravity.CENTER_HORIZONTAL);
+            }
             heroName.setTextSize(TypedValue.COMPLEX_UNIT_SP, 30f);
             heroName.setLetterSpacing(0f);
         }
@@ -614,12 +620,15 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             // Keep the hero below the header when the library is enabled on a short screen,
             // even when the theme requests an extra visible row below the dock.
             int shelfClearance = cfg.appLibrary ? hero.getMeasuredHeight() + (int) (40 * density) : 0;
-            int want = Math.max(shelfClearance, h - dockRow - gridRows - (int) (AppAdapter.BOTTOM_ROOM_DP * density));
+            // dock_bottom_room: the theme says how much room stays under the dock, which sets how low it sits.
+            int bottomRoom = (int) ((cfg.dockBottomRoom >= 0 ? cfg.dockBottomRoom : AppAdapter.BOTTOM_ROOM_DP) * density);
+            int want = Math.max(shelfClearance, h - dockRow - gridRows - bottomRoom);
             // Where the rows cannot fit even at the smallest tile (3 rows with the title on), the title keeps its
             // room above the dock and the last rows run off the bottom instead of the title drawing over the clock.
             if (MainActivity.this.dockRow && cfg.dockTitle && rowsBelowDock > 0) want = Math.max(want, (int) (AppAdapter.TITLE_ROOM_DP * density));
             // more_apps: the dock rises by the button's row (row_app_library, 84dp) so the button fits under it.
-            if (cfg.moreApps) want -= (int) (84 * density);
+            // Not when the button is in the top bar (library_button), or the theme placed the dock itself.
+            if (cfg.moreApps && !cfg.libraryButton && cfg.dockBottomRoom < 0) want -= (int) (84 * density);
             // No dock to push down: the grid starts at the top, with room for the first row's zoom and glass.
             if (!MainActivity.this.dockRow) want = (int) (AppAdapter.TOP_ROOM_DP * density);
             if (grid.getPaddingTop() != want) {
@@ -695,7 +704,12 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             onLibraryRequested();
             libraryFromTopBar = true;   // closing it goes back to this button, not to the pill after the last row
         });
-        btnLibraryTop.setVisibility(cfg.libraryButton && cfg.appLibrary ? View.VISIBLE : View.GONE);
+        btnLibraryTop.setVisibility(cfg.libraryButton && (cfg.appLibrary || cfg.moreApps) ? View.VISIBLE : View.GONE);
+        if (cfg.libraryButton && cfg.moreApps) {
+            // more_apps: the top-bar button opens the More apps grid, as an outline grid like the other icons.
+            ((TextView) btnLibraryTop).setCompoundDrawablesRelativeWithIntrinsicBounds(R.drawable.ic_more_apps, 0, 0, 0);
+            btnLibraryTop.setContentDescription(getString(R.string.more_apps));
+        }
         iconOnlyButtons = cfg.iconOnlyButtons;
         topMenu = cfg.topMenu;
         wifiIconOnly = iconOnlyButtons && cfg.wifiLabelWidth <= 0;
@@ -771,7 +785,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             topButtons.addView(btnWifi, 0);
             ColorStateList white = ColorStateList.valueOf(Color.WHITE);
             if (wifiOnlineTint != null) wifiPlainTint = white;
-            for (TextView button : new TextView[]{btnWifi, (TextView) btnInputs, (TextView) btnSettings}) {
+            for (TextView button : new TextView[]{btnWifi, (TextView) btnInputs, (TextView) btnLibraryTop, (TextView) btnSettings}) {
                 makeIconOnly(button);
                 button.setBackground(null);
                 button.setCompoundDrawableTintList(white);
@@ -1680,7 +1694,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         moreAdapter.clear();
         fadeScrollShade(false);
         showHome(true);
-        if (refocus) focusLibrary();
+        if (refocus && adapter.isLibraryAt(adapter.appCount())) focusLibrary();
+        else if (refocus) btnLibraryTop.requestFocus();   // library_button: back to the icon that opened it
     }
 
     /** The header and the dock: everything but the background, the wallpaper and the More apps grid. */
@@ -1823,6 +1838,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         String label = lines != null ? Taglines.pick(lines, taglineVisit) : dockTitleShown ? adapter.labelAt(position) : "";
         int color = adapter.ambientColorAt(position);
         if (root.getHeight() > 0) dockGlowY = (dockTopInRoot + tileRect.height() / 2f) / root.getHeight();
+        if (!dockTaglines.isEmpty() && !taglineCentered) alignTagline();
         float y = dockTopInRoot - 14 * density - 26 * density - hero.getHeight();
         boolean changed = !label.contentEquals(heroName.getText());
         if (cinematic && heroArtAlpha > 0f) showHeroArt(position);
@@ -2071,6 +2087,25 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         }
         // The default tint mode, SRC_IN, keeps the mask's alpha and takes the colour from the tint.
         glow.setTint(0xFF000000 | color);
+    }
+
+    /**
+     * tagline_align left: the line starts where the dock's first logo does (its tile when it has no logo), by layout
+     * position, so the focus grow does not move it. Set as the shelf's margin: its slide in uses the translation.
+     */
+    private void alignTagline() {
+        RecyclerView.ViewHolder first = grid.findViewHolderForAdapterPosition(0);
+        if (first == null) return;
+        View card = first.itemView.findViewById(R.id.card);
+        View banner = card.findViewById(R.id.banner);
+        View edge = banner.getVisibility() == View.VISIBLE && banner.getWidth() > 0 ? banner : card;
+        Rect r = new Rect(0, 0, edge.getWidth(), edge.getHeight());
+        root.offsetDescendantRectToMyCoords(edge, r);
+        FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) hero.getLayoutParams();
+        if (lp.getMarginStart() != r.left) {
+            lp.setMarginStart(r.left);
+            hero.setLayoutParams(lp);
+        }
     }
 
     /**

@@ -234,6 +234,10 @@ final class Config {
     final boolean homeReturnsToLast;
     /** Up from the dock goes to the top-right buttons; Left and Right stop at its ends (config.xml strict_dock_nav). */
     final boolean strictDockNav;
+    /** Where dock_taglines sits: "left", from the dock's first logo (default), or "center" (config.xml tagline_align). */
+    final boolean taglineCentered;
+    /** Room under the dock row in dp, which sets how low the dock sits (config.xml dock_bottom_room); -1 keeps the default. */
+    final int dockBottomRoom;
 
     private Config(List<String> dockApps, boolean fillDock, List<String> hiddenApps, List<String> libraryApps, String liveTvPackage,
                    String liveTvAction, String liveTvInputId, Map<String, String> launchActions, Map<String, String> appLabels,
@@ -250,7 +254,8 @@ final class Config {
                    boolean handleViewInputs, boolean tileMenu, boolean dockEvenPadding, boolean cinematicDots, boolean cinematicWhiteFocus, boolean wifiStatusColor, int cinematicScrim, int cinematicArt,
                    Map<String, Set<String>> wallpaperMoods, int bottomShade, int scrollDim, String weatherCity,
                    Map<String, File> dockLogos, int dockLogoSize, Map<String, List<String>> dockTaglines,
-                   Map<String, Integer> appColors, boolean homeReturnsToLast, boolean strictDockNav) {
+                   Map<String, Integer> appColors, boolean homeReturnsToLast, boolean strictDockNav,
+                   boolean taglineCentered, int dockBottomRoom) {
         this.bottomShade = bottomShade;
         this.scrollDim = scrollDim;
         this.weatherCity = weatherCity;
@@ -260,6 +265,8 @@ final class Config {
         this.appColors = Collections.unmodifiableMap(appColors);
         this.homeReturnsToLast = homeReturnsToLast;
         this.strictDockNav = strictDockNav;
+        this.taglineCentered = taglineCentered;
+        this.dockBottomRoom = dockBottomRoom;
         this.handleViewInputs = handleViewInputs;
         this.tileMenu = tileMenu;
         this.inputKeycodes = inputKeycodes;
@@ -445,6 +452,8 @@ final class Config {
         List<String> appColors = new ArrayList<>(Arrays.asList(res.getStringArray(R.array.app_colors)));
         boolean homeReturnsToLast = res.getBoolean(R.bool.home_returns_to_last);
         boolean strictDockNav = res.getBoolean(R.bool.strict_dock_nav);
+        String taglineAlign = res.getString(R.string.tagline_align).trim();
+        int dockBottomRoom = res.getInteger(R.integer.dock_bottom_room);
         boolean applied = false;
 
         File dir = dir(ctx);
@@ -538,6 +547,8 @@ final class Config {
             appColors = packageEntries(json, "app_colors", appColors);
             homeReturnsToLast = bool(json, "home_returns_to_last", homeReturnsToLast);
             strictDockNav = bool(json, "strict_dock_nav", strictDockNav);
+            taglineAlign = string(json, "tagline_align", taglineAlign);
+            dockBottomRoom = integer(json, "dock_bottom_room", dockBottomRoom, 0, 400);
         }
         // A theme push or reset invalidates choices made on the TV. On first use, remember the
         // current theme without clearing choices from an older launcher version.
@@ -596,7 +607,8 @@ final class Config {
                 festival, inputKeycodes, appKeys, stockHomeRedirect, json == null ? Collections.emptyList() : raceCalendar(json), cinematic, ambientGlow, appGlow, fadeRows,
                 Math.max(0, idleClockMinutes), keyFilter, dockGlass, glowStyle, wallpaperCaptions, handleViewInputs, tileMenu, dockEvenPadding, cinematicDots, cinematicWhiteFocus, wifiStatusColor, cinematicScrim, cinematicArt, wallpaperMoods,
                 clamp(bottomShade, 0, 100), clamp(scrollDim, 0, 90), weatherCity, themeFiles(dir, packageMap(dockLogos)),
-                clamp(dockLogoSize, 50, 200), dockTaglines, colorMap(packageMap(appColors)), homeReturnsToLast, strictDockNav);
+                clamp(dockLogoSize, 50, 200), dockTaglines, colorMap(packageMap(appColors)), homeReturnsToLast, strictDockNav,
+                "center".equalsIgnoreCase(taglineAlign), dockBottomRoom < 0 ? -1 : Math.min(400, dockBottomRoom));
     }
 
     /**

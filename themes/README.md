@@ -63,7 +63,7 @@ A new key needs one there in the same pull request.
 | `launcher_settings_button` | bool | Make the header Settings action open Launcher settings directly with a matching 22dp home icon; also changes the Settings row when `top_menu` is on. Hold OK keeps module-card and ordering tools. The settings page includes Reorder apps and TV settings (`false` by default) |
 | `wifi_status_color` | bool | The Wi-Fi pill's icon green while the TV is online, white while it is not (`false` by default) |
 | `wifi_label_width` | 0 to 300 | With `icon_only_buttons`, keep the network name on the Wi-Fi pill up to this width in dp, cut with an ellipsis; 0 leaves only the icon |
-| `library_button` | bool | The app library as a round button in the top bar, beside Settings; needs `app_library`. Closing the library returns to it |
+| `library_button` | bool | The app library as a round button in the top bar, beside Settings; needs `app_library`. Closing the library returns to it. With `more_apps` instead, it is an outline grid icon that opens the More apps grid, and the More apps button under the dock goes away |
 | `always_show_names` | bool | Names under every tile, dimmed until focused, the dock included (its band grows to hold them); `false` by default shows only the focused tile's name |
 | `wallpaper_true_color` | bool | Decode wallpapers in 32-bit colour (8 MB at 1080p) instead of RGB_565 (4 MB), which bands dark gradients such as a night sky; for TVs with 2 GB or more (`false` by default) |
 | `app_library` | bool | An App library pill after the last Home row: every installed app, add one to Home or take it off (`false` by default). The choices stay on the TV when a theme is pushed or reset; see [docs/app-library.md](../docs/app-library.md) |
@@ -93,6 +93,8 @@ A new key needs one there in the same pull request.
 | `dock_taglines` | object | `{"package": "line"}` or `{"package": ["line", "line"]}`: shown above the dock, centred, while that app is focused, instead of its name; with several lines, each return to Home shows the next. Shows even with `dock_title` off. Empty by default |
 | `app_colors` | object | `{"package": "#RRGGBB"}`: the colour of that app's glow instead of one sampled from its art, which white logos do not have. A value that is not a colour is skipped. Empty by default |
 | `home_returns_to_last` | bool | Home brings focus back to what was used last: from an app, the tile it was opened from (the More apps grid stays open); on Home already, the dock app focused last. `false` goes to the first tile (default) |
+| `tagline_align` | string | Where the `dock_taglines` line sits above the dock: `left`, starting where the dock's first logo starts (default), or `center` |
+| `dock_bottom_room` | 0 to 400 | Room under the dock row in dp, which sets how low the dock sits: less room, lower dock. Leave it out for the built-in placement |
 | `strict_dock_nav` | bool | Up from the dock always goes to the first of the top-right buttons, never wherever the focus search lands, and Left and Right stop at the dock's ends: Right on the last app no longer jumps to More apps (`false` by default) |
 | `handle_view_inputs` | bool | Answer the system input switcher (`VIEW_INPUTS`, what the remote's Input button becomes) with the Inputs menu, for sets whose stock launcher was its only handler (Hisense huangshan); `false` by default so a TV with its own input picker never gets a chooser |
 | `background_color` | `#RRGGBB` | Colour behind everything; black by default |

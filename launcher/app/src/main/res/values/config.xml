@@ -230,6 +230,12 @@
          lands, and Left and Right stop at the dock's ends (Right on the last app no longer jumps to More apps). Off by
          default; a theme can set "strict_dock_nav": true. -->
     <bool name="strict_dock_nav">false</bool>
+    <!-- Where the dock_taglines line sits above the dock: left (starting where the dock's first logo starts, the
+         default) or center. A theme can set "tagline_align": "center". -->
+    <string name="tagline_align" translatable="false">left</string>
+    <!-- Room under the dock row in dp, 0 to 400, which sets how low the dock sits: less room, lower dock. -1 keeps the
+         built-in placement (default). A theme can set "dock_bottom_room": 20. -->
+    <integer name="dock_bottom_room">-1</integer>
     <!-- A name after the greeting: "Mr. Trịnh" shows GOOD MORNING, MR. TRỊNH. Empty: the greeting alone. -->
     <string name="greeting_name" translatable="false"></string>
     <!-- Optional VPN app the network pill opens (hold the pill for Wi-Fi settings), e.g. the package of the
