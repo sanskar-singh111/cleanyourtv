@@ -418,4 +418,25 @@
          ellipse behind the dock's row, for floating dock_logos) or tagline (a soft light behind the dock_taglines line). The cinematic shelf
          keeps its own glow. Can also be set with "glow_style": "horizon" in a theme's config.json. -->
     <string name="glow_style" translatable="false">radial</string>
+    <!-- How strong the glow in the focused app's colour is (every glow_style but the cinematic shelf's), 0 (none) to
+         100 (strong); -1 (default) keeps the built-in strength, which is about 50. A theme can set "glow_strength": 70. -->
+    <integer name="glow_strength">-1</integer>
+    <!-- How big that glow is, in percent of the built-in size, 50 to 200 (100, default). "glow_size": 140. -->
+    <integer name="glow_size">100</integer>
+    <!-- With plain_focus or bare_buttons, how much a focused app or icon grows, 0 to 25 percent, and over how many
+         milliseconds, 100 to 400. The defaults are the built-in 10 and 180. A theme can set "focus_grow": 15 and
+         "focus_grow_ms": 250. -->
+    <integer name="focus_grow">10</integer>
+    <integer name="focus_grow_ms">180</integer>
+    <!-- What Home fades to after idle_fade_minutes: "wallpaper" (default: everything fades and the wallpaper stays),
+         "clock" (a big clock), "clock_weather" (the clock and weather_city's temperature) or "slideshow" (the pictures
+         in the theme's screensaver/ folder, one at a time). Any button wakes Home without doing anything else.
+         A theme can set "screensaver": "clock". -->
+    <string name="screensaver" translatable="false">wallpaper</string>
+    <!-- How dark the screen gets while Home is faded, 0 to 80 percent; 0 (default) adds nothing. "screensaver_dim": 40. -->
+    <integer name="screensaver_dim">0</integer>
+    <!-- How long Home takes to fade out into it, 250 to 5000 milliseconds (1000, default). "screensaver_fade_ms": 2000. -->
+    <integer name="screensaver_fade_ms">1000</integer>
+    <!-- With "slideshow", minutes per picture, 1 to 60 (5, default). "screensaver_slide_minutes": 10. -->
+    <integer name="screensaver_slide_minutes">5</integer>
 </resources>

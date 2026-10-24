@@ -242,6 +242,18 @@ final class Config {
     final boolean moreAppsNames;
     /** dock_taglines move on to an app's next line each time focus lands on it, not once per return (tagline_rotate focus). */
     final boolean taglineOnFocus;
+    /** Strength of the app-colour glow, 0 to 100, or -1 for the built-in one (config.xml glow_strength). */
+    final int glowStrength;
+    /** Size of that glow in percent of the built-in one, 50 to 200 (config.xml glow_size). */
+    final int glowSize;
+    /** plain_focus / bare_buttons grow on focus, in percent (config.xml focus_grow, 0 to 25) and ms (focus_grow_ms). */
+    final int focusGrow, focusGrowMs;
+    /** What idle_fade_minutes fades to (config.xml screensaver): one of the Screensaver modes. */
+    final String screensaver;
+    /** Black over the faded Home in percent (screensaver_dim), the fade's length (screensaver_fade_ms), minutes per slide. */
+    final int screensaverDim, screensaverFadeMs, screensaverSlideMinutes;
+    /** The pictures in the theme's screensaver/ folder; read only for the "slideshow" screensaver. */
+    final List<File> screensaverImages;
 
     private Config(List<String> dockApps, boolean fillDock, List<String> hiddenApps, List<String> libraryApps, String liveTvPackage,
                    String liveTvAction, String liveTvInputId, Map<String, String> launchActions, Map<String, String> appLabels,
@@ -259,7 +271,18 @@ final class Config {
                    Map<String, Set<String>> wallpaperMoods, int bottomShade, int scrollDim, String weatherCity,
                    Map<String, File> dockLogos, int dockLogoSize, Map<String, List<String>> dockTaglines,
                    Map<String, Integer> appColors, boolean homeReturnsToLast, boolean strictDockNav,
-                   boolean taglineCentered, int dockBottomRoom, boolean moreAppsNames, boolean taglineOnFocus) {
+                   boolean taglineCentered, int dockBottomRoom, boolean moreAppsNames, boolean taglineOnFocus,
+                   int glowStrength, int glowSize, int focusGrow, int focusGrowMs, String screensaver, int screensaverDim,
+                   int screensaverFadeMs, int screensaverSlideMinutes, List<File> screensaverImages) {
+        this.glowStrength = glowStrength;
+        this.glowSize = glowSize;
+        this.focusGrow = focusGrow;
+        this.focusGrowMs = focusGrowMs;
+        this.screensaver = screensaver;
+        this.screensaverDim = screensaverDim;
+        this.screensaverFadeMs = screensaverFadeMs;
+        this.screensaverSlideMinutes = screensaverSlideMinutes;
+        this.screensaverImages = Collections.unmodifiableList(screensaverImages);
         this.bottomShade = bottomShade;
         this.scrollDim = scrollDim;
         this.weatherCity = weatherCity;
@@ -463,6 +486,14 @@ final class Config {
         int dockBottomRoom = res.getInteger(R.integer.dock_bottom_room);
         boolean moreAppsNames = res.getBoolean(R.bool.more_apps_names);
         String taglineRotate = res.getString(R.string.tagline_rotate).trim();
+        int glowStrength = res.getInteger(R.integer.glow_strength);
+        int glowSize = res.getInteger(R.integer.glow_size);
+        int focusGrow = res.getInteger(R.integer.focus_grow);
+        int focusGrowMs = res.getInteger(R.integer.focus_grow_ms);
+        String screensaver = res.getString(R.string.screensaver);
+        int screensaverDim = res.getInteger(R.integer.screensaver_dim);
+        int screensaverFadeMs = res.getInteger(R.integer.screensaver_fade_ms);
+        int screensaverSlideMinutes = res.getInteger(R.integer.screensaver_slide_minutes);
         boolean applied = false;
 
         File dir = dir(ctx);
@@ -560,6 +591,14 @@ final class Config {
             dockBottomRoom = integer(json, "dock_bottom_room", dockBottomRoom, 0, 400);
             moreAppsNames = bool(json, "more_apps_names", moreAppsNames);
             taglineRotate = string(json, "tagline_rotate", taglineRotate);
+            glowStrength = integer(json, "glow_strength", glowStrength, 0, 100);
+            glowSize = integer(json, "glow_size", glowSize, 50, 200);
+            focusGrow = integer(json, "focus_grow", focusGrow, 0, 25);
+            focusGrowMs = integer(json, "focus_grow_ms", focusGrowMs, 100, 400);
+            screensaver = string(json, "screensaver", screensaver);
+            screensaverDim = integer(json, "screensaver_dim", screensaverDim, 0, 80);
+            screensaverFadeMs = integer(json, "screensaver_fade_ms", screensaverFadeMs, 250, 5000);
+            screensaverSlideMinutes = integer(json, "screensaver_slide_minutes", screensaverSlideMinutes, 1, 60);
         }
         // A theme push or reset invalidates choices made on the TV. On first use, remember the
         // current theme without clearing choices from an older launcher version.
@@ -620,7 +659,13 @@ final class Config {
                 clamp(bottomShade, 0, 100), clamp(scrollDim, 0, 90), weatherCity, themeFiles(dir, packageMap(dockLogos)),
                 clamp(dockLogoSize, 50, 200), dockTaglines, colorMap(packageMap(appColors)), homeReturnsToLast, strictDockNav,
                 "center".equalsIgnoreCase(taglineAlign), dockBottomRoom < 0 ? -1 : Math.min(400, dockBottomRoom), moreAppsNames,
-                "focus".equalsIgnoreCase(taglineRotate));
+                "focus".equalsIgnoreCase(taglineRotate),
+                glowStrength < 0 ? -1 : Math.min(100, glowStrength), clamp(glowSize, 50, 200), clamp(focusGrow, 0, 25),
+                clamp(focusGrowMs, 100, 400), Screensaver.mode(screensaver), clamp(screensaverDim, 0, 80),
+                clamp(screensaverFadeMs, 250, 5000), clamp(screensaverSlideMinutes, 1, 60),
+                // Nothing is listed unless the slideshow is on.
+                dir != null && Screensaver.SLIDESHOW.equals(Screensaver.mode(screensaver))
+                        ? WallpaperRotation.images(new File(dir, Screensaver.FOLDER)) : new ArrayList<>());
     }
 
     /**

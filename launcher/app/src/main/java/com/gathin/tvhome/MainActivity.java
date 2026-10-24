@@ -125,9 +125,33 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     /** Home has faded: the next key only brings it back. The key whose press woke it, so its release is eaten too. */
     private boolean faded;
     private int wakeKey = KeyEvent.KEYCODE_UNKNOWN;
+    /** screensaver: what the faded Home shows (Screensaver), its dim, fade, slides and their pictures. */
+    private String saverMode = Screensaver.WALLPAPER;
+    private int saverDim;
+    private int saverFadeMs = 1000;
+    private long saverSlideMs;
+    private List<File> saverImages = Collections.emptyList();
+    private Bitmap.Config saverBitmapConfig = Bitmap.Config.RGB_565;
+    private FrameLayout saverLayer;
+    private ImageView saverSlide;
+    private Bitmap saverBitmap;
+    private int saverIndex = -1;
+    /** Bumped on every show and hide, so a slide decoded for an earlier showing is dropped. */
+    private int saverRun;
+    private View saverWeatherRow;
+    private WeatherIcon saverWeatherIcon;
+    private TextView saverWeatherText;
+    private Weather.Reading lastWeather;
+    private final Runnable nextSlide = this::nextSlide;
+    /** glow_strength / glow_size: the app-colour glow's alpha factor and size; 1 is the built-in glow. */
+    private float glowFactor = 1f, glowScale = 1f;
+    /** focus_grow / focus_grow_ms for bare_buttons' icons. */
+    private float growScale = AppAdapter.FOCUS_SCALE;
+    private int growMs = 180;
     private final Runnable fadeHome = () -> {
         faded = true;
-        for (View v : fadingViews()) v.animate().alpha(0f).setDuration(1000).start();
+        for (View v : fadingViews()) v.animate().alpha(0f).setDuration(saverFadeMs).start();
+        showSaver();
     };
     private String liveTvAction;
     private String liveTvInputId;
@@ -413,6 +437,16 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         liveTvPkg = cfg.liveTvPackage;
         idleClockMs = cfg.homeIdleClockMinutes * MINUTE_MS;
         idleFadeMs = cfg.idleFadeMinutes * MINUTE_MS;
+        saverMode = cfg.screensaver;
+        saverDim = cfg.screensaverDim;
+        saverFadeMs = cfg.screensaverFadeMs;
+        saverSlideMs = cfg.screensaverSlideMinutes * MINUTE_MS;
+        saverImages = cfg.screensaverImages;
+        saverBitmapConfig = cfg.wallpaperTrueColor ? Bitmap.Config.ARGB_8888 : Bitmap.Config.RGB_565;
+        glowFactor = Screensaver.glowFactor(cfg.glowStrength);
+        glowScale = cfg.glowSize / 100f;
+        growScale = 1f + cfg.focusGrow / 100f;
+        growMs = cfg.focusGrowMs;
         bootToLiveTv = cfg.bootToLiveTv;
         liveTvAction = cfg.liveTvAction;
         liveTvInputId = cfg.liveTvInputId;
@@ -1173,6 +1207,159 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private void unfade(int ms) {
         faded = false;
         for (View v : fadingViews()) v.animate().alpha(1f).setDuration(ms).start();
+        hideSaver(ms);
+    }
+
+    // ---- screensaver ------------------------------------------------------------------------------
+
+    /**
+     * screensaver: fades in over the faded Home. Built on first use, and only when it has something to draw, so the
+     * default (the wallpaper alone, no dim) runs nothing new. No video and no blur; a slideshow holds one picture.
+     */
+    private void showSaver() {
+        if (!Screensaver.draws(saverMode, saverDim, saverImages.size())) return;
+        if (saverLayer == null) buildSaver();
+        saverRun++;
+        saverLayer.animate().cancel();
+        saverLayer.setAlpha(0f);
+        saverLayer.setVisibility(View.VISIBLE);
+        saverLayer.bringToFront();
+        updateSaverWeather();
+        if (saverSlide != null) nextSlide();
+        saverLayer.animate().alpha(1f).setDuration(saverFadeMs).start();
+    }
+
+    private void hideSaver(int ms) {
+        if (saverLayer == null || saverLayer.getVisibility() != View.VISIBLE) return;
+        saverRun++;
+        root.removeCallbacks(nextSlide);
+        saverLayer.animate().cancel();
+        saverLayer.animate().alpha(0f).setDuration(ms).withEndAction(() -> {
+            saverLayer.setVisibility(View.GONE);
+            releaseSlide();
+        }).start();
+    }
+
+    private void buildSaver() {
+        saverLayer = new FrameLayout(this);
+        saverLayer.setFocusable(false);
+        saverLayer.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
+        FrameLayout.LayoutParams full = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT);
+        if (Screensaver.SLIDESHOW.equals(saverMode)) {
+            saverSlide = new ImageView(this);
+            saverSlide.setScaleType(ImageView.ScaleType.CENTER_CROP);
+            saverLayer.addView(saverSlide, full);
+        }
+        if (saverDim > 0) {
+            View dim = new View(this);
+            dim.setBackgroundColor(Math.round(saverDim * 2.55f) << 24);
+            saverLayer.addView(dim, full);
+        }
+        if (Screensaver.CLOCK.equals(saverMode) || Screensaver.CLOCK_WEATHER.equals(saverMode)) {
+            LinearLayout box = new LinearLayout(this);
+            box.setOrientation(LinearLayout.VERTICAL);
+            box.setGravity(Gravity.CENTER_HORIZONTAL);
+            android.widget.TextClock clock = new android.widget.TextClock(this);
+            clock.setFormat12Hour("h:mm");
+            clock.setFormat24Hour("HH:mm");
+            clock.setTextColor(0xF2FFFFFF);
+            clock.setTextSize(TypedValue.COMPLEX_UNIT_SP, 150f);
+            clock.setLetterSpacing(-0.04f);
+            clock.setIncludeFontPadding(false);
+            clock.setMaxLines(1);
+            try {
+                clock.setTypeface(UiFont.get(this, R.string.font_light));
+            } catch (Exception ignored) {
+                // the system font is fine
+            }
+            box.addView(clock, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT));
+            if (Screensaver.CLOCK_WEATHER.equals(saverMode)) {
+                LinearLayout row = new LinearLayout(this);
+                row.setOrientation(LinearLayout.HORIZONTAL);
+                row.setGravity(Gravity.CENTER_VERTICAL);
+                ImageView icon = new ImageView(this);
+                saverWeatherIcon = new WeatherIcon();
+                icon.setImageDrawable(saverWeatherIcon);
+                int size = Math.round(40 * density);
+                row.addView(icon, new LinearLayout.LayoutParams(size, size));
+                saverWeatherText = new TextView(this);
+                saverWeatherText.setTextColor(0xE6FFFFFF);
+                saverWeatherText.setTextSize(TypedValue.COMPLEX_UNIT_SP, 36f);
+                saverWeatherText.setIncludeFontPadding(false);
+                saverWeatherText.setTypeface(clock.getTypeface());
+                LinearLayout.LayoutParams tlp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT);
+                tlp.setMarginStart(Math.round(12 * density));
+                row.addView(saverWeatherText, tlp);
+                LinearLayout.LayoutParams rlp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT);
+                rlp.topMargin = Math.round(8 * density);
+                box.addView(row, rlp);
+                saverWeatherRow = row;
+            }
+            // As wide as the screen, centred inside: wrapped to its content, the box took the weather row's width
+            // before the clock had its text, and the time broke over two lines.
+            saverLayer.addView(box, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER_VERTICAL));
+        }
+        saverLayer.setVisibility(View.GONE);
+        root.addView(saverLayer, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT));
+    }
+
+    /** clock_weather: the last reading weather_city got for the clock, or nothing until there is one. */
+    private void updateSaverWeather() {
+        if (saverWeatherRow == null) return;
+        if (lastWeather == null) {
+            saverWeatherRow.setVisibility(View.GONE);
+            return;
+        }
+        saverWeatherIcon.setKind(lastWeather.icon);
+        saverWeatherText.setText(getString(R.string.weather_celsius, lastWeather.celsius));
+        saverWeatherRow.setVisibility(View.VISIBLE);
+    }
+
+    /**
+     * slideshow: the shown picture fades out and is let go before the next one is decoded (to the screen's size,
+     * off the UI thread), so only one is ever held.
+     */
+    private void nextSlide() {
+        root.removeCallbacks(nextSlide);
+        if (!faded || saverSlide == null || saverImages.isEmpty()) return;
+        int run = saverRun;
+        saverIndex = Screensaver.next(saverIndex, saverImages.size());
+        File file = saverImages.get(saverIndex);
+        int w = root.getWidth(), h = root.getHeight();
+        Bitmap.Config config = saverBitmapConfig;
+        saverSlide.animate().cancel();
+        saverSlide.animate().alpha(0f).setDuration(saverBitmap == null ? 0 : 600).withEndAction(() -> {
+            releaseSlide();
+            new Thread(() -> {
+                Bitmap next = WallpaperPlayer.decodeForScreen(file, w, h, config, 0);
+                root.post(() -> {
+                    if (run != saverRun || !faded) {
+                        if (next != null) next.recycle();
+                        return;
+                    }
+                    if (next != null) {
+                        saverBitmap = next;
+                        saverSlide.setImageBitmap(next);
+                        saverSlide.animate().alpha(1f).setDuration(600).start();
+                    }
+                    root.postDelayed(nextSlide, saverSlideMs);
+                });
+            }, "screensaver").start();
+        }).start();
+    }
+
+    private void releaseSlide() {
+        if (saverSlide != null) saverSlide.setImageDrawable(null);
+        Bitmap old = saverBitmap;
+        saverBitmap = null;
+        // After a frame has drawn without it, as WallpaperPlayer does.
+        if (old != null) root.postDelayed(old::recycle, 500);
     }
 
     @Override
@@ -1247,6 +1434,11 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         unregisterReceiver(packageReceiver);
         wallpaperPlayer.close();
         if (weather != null) weather.close();
+        saverRun++;
+        root.removeCallbacks(nextSlide);
+        if (saverSlide != null) saverSlide.setImageDrawable(null);
+        if (saverBitmap != null) saverBitmap.recycle();
+        saverBitmap = null;
         ConnectivityManager cm = getSystemService(ConnectivityManager.class);
         TvInputManager tim = (TvInputManager) getSystemService(TV_INPUT_SERVICE);
         if (tim != null) tim.unregisterCallback(inputCallback);
@@ -2075,8 +2267,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                         Shader.TileMode.CLAMP));
             } else if (Config.GLOW_TAGLINE.equals(glowStyle)) {
                 // A soft, wide light behind the dock's tagline, so the line sits in the focused app's colour.
-                RadialGradient line = new RadialGradient(0f, 0f, w * 0.3f,
-                        new int[]{0x52FFFFFF, 0x1FFFFFFF, 0x00FFFFFF}, new float[]{0f, 0.5f, 1f}, Shader.TileMode.CLAMP);
+                RadialGradient line = new RadialGradient(0f, 0f, w * 0.3f * glowScale,
+                        glow(0x52FFFFFF, 0x1FFFFFFF, 0x00FFFFFF), new float[]{0f, 0.5f, 1f}, Shader.TileMode.CLAMP);
                 Matrix m = new Matrix();
                 m.setScale(1f, 0.45f);
                 m.postTranslate(w * Math.max(0.05f, Math.min(0.95f, taglineGlowX)),
@@ -2085,8 +2277,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 paint.setShader(line);
             } else if (Config.GLOW_DOCK.equals(glowStyle)) {
                 // A wide, low ellipse behind the dock's row, so the focused app's colour sits under its logo.
-                RadialGradient dock = new RadialGradient(0f, 0f, w * 0.42f,
-                        new int[]{0x4DFFFFFF, 0x1CFFFFFF, 0x00FFFFFF}, new float[]{0f, 0.5f, 1f}, Shader.TileMode.CLAMP);
+                RadialGradient dock = new RadialGradient(0f, 0f, w * 0.42f * glowScale,
+                        glow(0x4DFFFFFF, 0x1CFFFFFF, 0x00FFFFFF), new float[]{0f, 0.5f, 1f}, Shader.TileMode.CLAMP);
                 Matrix m = new Matrix();
                 m.setScale(1f, 0.42f);
                 m.postTranslate(w * 0.5f, h * Math.max(0.3f, Math.min(0.95f, dockGlowY)));
@@ -2095,20 +2287,20 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             } else if (Config.GLOW_HORIZON.equals(glowStyle)) {
                 // The colour washes down from the top edge and fades out three quarters of the way down,
                 // with a brighter band along the top like light over a horizon.
-                paint.setShader(new LinearGradient(0, 0, 0, h * 0.75f,
-                        new int[]{0x66FFFFFF, 0x24FFFFFF, 0x00FFFFFF},
+                paint.setShader(new LinearGradient(0, 0, 0, Math.min(h, h * 0.75f * glowScale),
+                        glow(0x66FFFFFF, 0x24FFFFFF, 0x00FFFFFF),
                         new float[]{0f, 0.4f, 1f},
                         Shader.TileMode.CLAMP));
                 canvas.drawRect(0, 0, w, h, paint);
                 paint.setShader(new RadialGradient(
-                        w * 0.5f, -h * 0.25f, w * 0.55f,
-                        new int[]{0x40FFFFFF, 0x00FFFFFF},
+                        w * 0.5f, -h * 0.25f, w * 0.55f * glowScale,
+                        glow(0x40FFFFFF, 0x00FFFFFF),
                         null,
                         Shader.TileMode.CLAMP));
             } else {
                 paint.setShader(new RadialGradient(
-                        w * 0.32f, h * 0.42f, w * 0.62f,
-                        new int[]{0x5CFFFFFF, 0x26FFFFFF, 0x00FFFFFF},
+                        w * 0.32f, h * 0.42f, w * 0.62f * glowScale,
+                        glow(0x5CFFFFFF, 0x26FFFFFF, 0x00FFFFFF),
                         new float[]{0f, 0.45f, 1f},
                         Shader.TileMode.CLAMP));
             }
@@ -2244,12 +2436,21 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         weather = new Weather(this, city, reading -> {
             if (reading == null) {
                 weatherBlock.setVisibility(View.GONE);
+                lastWeather = null;
+                updateSaverWeather();
                 return;
             }
             weatherIcon.setKind(reading.icon);
             weatherText.setText(getString(R.string.weather_celsius, reading.celsius));
             weatherBlock.setVisibility(View.VISIBLE);
+            lastWeather = reading;
+            updateSaverWeather();
         });
+    }
+
+    /** A glow's gradient stops with glow_strength applied (the cinematic shelf keeps its own). */
+    private int[] glow(int... colors) {
+        return Screensaver.scaleAlpha(colors, glowFactor);
     }
 
     private void transitionAmbient(int color) {
@@ -3369,10 +3570,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         });
     }
 
-    /** The one focus state of bare_buttons and plain_focus: a 10% grow over 180 ms, eased out. */
+    /** The one focus state of bare_buttons and plain_focus: a 10% grow over 180 ms, eased out (focus_grow, focus_grow_ms). */
     private void grow(View v, boolean focused) {
-        float s = focused ? AppAdapter.FOCUS_SCALE : 1f;
-        v.animate().scaleX(s).scaleY(s).setDuration(180).setInterpolator(new DecelerateInterpolator()).start();
+        float s = focused ? growScale : 1f;
+        v.animate().scaleX(s).scaleY(s).setDuration(growMs).setInterpolator(new DecelerateInterpolator()).start();
     }
 
     // ---- launcher settings and module cards -------------------------------------------------------

@@ -209,6 +209,9 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     private final boolean focusOvershoot;
     /** plain_focus: no names under the tiles, and focus is a short eased grow with no overshoot. */
     private final boolean plainFocus;
+    /** plain_focus: the focused tile's scale and how long it takes to get there (focus_grow, focus_grow_ms). */
+    private final float growScale;
+    private final int growMs;
     /** more_apps: Home shows the dock and a More apps button; the other apps open in a second adapter (rest). */
     private final boolean moreApps;
     /** This adapter is the More apps grid: every app after the dock, named, with no button of its own. */
@@ -246,6 +249,8 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         this.reducedMotion = cfg.reducedMotion;
         this.focusOvershoot = cfg.focusOvershoot;
         this.plainFocus = cfg.plainFocus;
+        this.growScale = 1f + cfg.focusGrow / 100f;
+        this.growMs = cfg.focusGrowMs;
         this.rowsBelowDock = cfg.rowsBelowDock;
         this.dockTitle = cfg.dockTitle;
         this.dockRow = cfg.dockRow;
@@ -407,8 +412,8 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             }
             button.setOnFocusChangeListener((v, focused) -> {
                 if (moreApps) {
-                    float s = focused ? FOCUS_SCALE : 1f;
-                    v.animate().scaleX(s).scaleY(s).setDuration(180).setInterpolator(new DecelerateInterpolator()).start();
+                    float s = focused ? growScale : 1f;
+                    v.animate().scaleX(s).scaleY(s).setDuration(growMs).setInterpolator(new DecelerateInterpolator()).start();
                 }
                 if (focused) listener.onLibraryFocused();
             });
@@ -441,7 +446,8 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             v.setPadding(v.getPaddingLeft(), pad, v.getPaddingRight(), pad);
         }
         name.setLayoutParams(nameLp);
-        return new Holder(v, listener, animations, advancedEffects, reducedMotion, restNameAlpha, focusOvershoot, plainFocus);
+        return new Holder(v, listener, animations, advancedEffects, reducedMotion, restNameAlpha, focusOvershoot, plainFocus,
+                growScale, growMs);
     }
 
     @Override
@@ -773,11 +779,13 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         final float restNameAlpha;
         final boolean overshoot;
         final boolean plain;
+        final float growScale;
+        final int growMs;
         /** The tile shows a floating dock logo (dock_logos): its name fades in under it on focus. */
         boolean logo;
 
         Holder(View v, TileListener listener, boolean animations, boolean advancedEffects,
-               boolean reducedMotion, float restNameAlpha, boolean overshoot, boolean plain) {
+               boolean reducedMotion, float restNameAlpha, boolean overshoot, boolean plain, float growScale, int growMs) {
             super(v);
             card = v.findViewById(R.id.card);
             cardBackground = card.getBackground();
@@ -791,6 +799,8 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             this.restNameAlpha = restNameAlpha;
             this.overshoot = overshoot;
             this.plain = plain;
+            this.growScale = growScale;
+            this.growMs = growMs;
 
             final float density = v.getResources().getDisplayMetrics().density;
             card.setOutlineProvider(new ViewOutlineProvider() {
@@ -826,9 +836,10 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
                     name.setAlpha(focused ? 1f : restNameAlpha);
                     name.setTranslationY(0f);
                 } else if (plain) {
-                    view.animate().scaleX(s).scaleY(s).setDuration(180)
+                    float g = focused ? growScale : 1f;
+                    view.animate().scaleX(g).scaleY(g).setDuration(growMs)
                             .setInterpolator(new DecelerateInterpolator()).withLayer().start();
-                    if (logo) name.animate().alpha(focused ? 1f : restNameAlpha).setDuration(180).start();
+                    if (logo) name.animate().alpha(focused ? 1f : restNameAlpha).setDuration(growMs).start();
                     else name.setAlpha(focused ? 1f : restNameAlpha);
                 } else if (reducedMotion) {
                     // A short zoom with no hardware layer: building a layer for so short an animation costs more

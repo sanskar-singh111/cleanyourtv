@@ -256,17 +256,25 @@ final class WallpaperPlayer {
     }
 
     private Bitmap decode(File file) {
+        return decodeForScreen(file, width, height, bitmapConfig, dimColor);
+    }
+
+    /**
+     * One picture sampled and scaled to cover a screen of {@code width}×{@code height}, as a GPU bitmap, or null if
+     * it can't be read or is too big (WallpaperSize). Also used by the screensaver's slideshow.
+     */
+    static Bitmap decodeForScreen(File file, int width, int height, Bitmap.Config bitmapConfig, int dimColor) {
         try {
             BitmapFactory.Options options = new BitmapFactory.Options();
             options.inJustDecodeBounds = true;
             BitmapFactory.decodeFile(file.getPath(), options);
-            int width = options.outWidth, height = options.outHeight;
-            if (width <= 0 || height <= 0) return null;
-            int sample = WallpaperSize.sampleSize(width, height, this.width, this.height);
-            if (!WallpaperSize.accepted(width / sample, height / sample)) return null;
+            int w = options.outWidth, h = options.outHeight;
+            if (w <= 0 || h <= 0) return null;
+            int sample = WallpaperSize.sampleSize(w, h, width, height);
+            if (!WallpaperSize.accepted(w / sample, h / sample)) return null;
             options.inJustDecodeBounds = false;
             options.inSampleSize = sample;
-            int[] scale = WallpaperSize.coverScale(width / sample, height / sample, this.width, this.height);
+            int[] scale = WallpaperSize.coverScale(w / sample, h / sample, width, height);
             if (scale != null) {
                 options.inScaled = true;
                 options.inDensity = scale[0];
