@@ -1,0 +1,83 @@
+# Xiaomi MiTV-MOOQ3 (codename tarzan, MediaTek), Android TV 11, firmware RTM4.220307.164.8237
+# India retail unit, 1.7 GB RAM, Android low-RAM mode on. Same tarzan board as MiTV-MOOQ1 (examples/xiaomi-mi-tv-4a,
+# Android 10) and the same RTM4.220307.164 firmware line as MiTV-MOOQ2 (examples/xiaomi-mitv-mooq2, croods board).
+#
+# Apply:   TV_HOST=<tv ip> tools/disable.sh examples/xiaomi-mitv-mooq3/debloat.txt
+# Undo:    TV_HOST=<tv ip> tools/restore.sh examples/xiaomi-mitv-mooq3/debloat.txt
+# Everything is DISABLED for user 0, not uninstalled. Comment out any line you want to keep.
+# Provisional: applied in one session and reboot-checked; every package stayed disabled after reboot.
+#
+# Stock launcher: com.google.android.tvlauncher. It is NOT in this list: launcher/build-and-install.sh disables it
+# after com.gathin.tvhome is installed and verified as Home. PatchWall (com.mitv.tvhome.atv) is what shows as Home on
+# this firmware although only tvlauncher and com.android.tv.settings/.system.FallbackHome answer HOME, so the Home
+# guard in disable.sh does not protect it: apply this list only once the new launcher is Home.
+# setupwraith does not answer HOME and the saved Wi-Fi network belongs to android.uid.system, so it stays enabled.
+# com.duokan.factorytest (the MOOQ1 HOME quirk) is not installed. The default keyboard is Gboard, which is installed
+# (no MOOQ1 Baidu quirk).
+#
+# "Glance for Mi" is not a separate app here: it is a content and ad block inside PatchWall (fetchGlanceData,
+# com.glance.tv.action.CONTENT_FETCH), so it goes with com.mitv.tvhome.atv.
+#
+# Firmware updater disabled by the owner's choice: no Xiaomi firmware updates are wanted. Re-enable it to update:
+#   tools/tv.py 'pm enable com.xiaomi.mitv.updateservice'
+#
+# Kept deliberately, checked with `dumpsys package`:
+#   com.mitv.overseaservice                        hosts netflixService (the Netflix key)
+#   com.xiaomi.android.tvsetup.partnercustomizer   holds BleRcActivity, the Bluetooth remote pairing
+#   com.mi.bluetooth                               RcService, the Bluetooth remote
+#   com.xiaomi.tvqs.overseas                       TV quick-settings receivers
+#   com.mediatek.tvinput, com.mediatek.tv.service, com.mediatek.wwtv.tvcenter, mitv.service,
+#   com.mitv.livetv.ci_mediatek, com.mediatek.wwtv.setupwizard   HDMI, AV, tuner, CI and channel setup
+#   com.xiaomi.mitv.smartshare, com.xiaomi.wfdsinkhelperservice   Miracast (WfdActivity) - MOOQ1's list disables
+#                                                                smartshare, but on this India build it is the
+#                                                                screen-mirroring app
+#   com.mitv.milinkservice                         Mi Link discovery, kept with screen mirroring
+#   com.google.android.apps.mediashell             Chromecast
+#   com.google.android.katniss, com.google.android.tv.remote.service   Google Assistant, voice search, phone remote
+#   com.xiaomi.mitv.tvmanager, com.mitv.gallery, com.xiaomi.mitv.mediaexplorer, com.mitv.videoplayer
+#                                                  TV Manager, Gallery, Media Player (videoplayer also hosts
+#                                                  com.mitv.tvhome.datastore providers)
+#   com.mitv.tvhome.mitvplus                       Xiaomi TV+, kept by owner's choice
+#
+# Before disabling com.mitv.dream and com.google.android.backdrop, point the screensaver elsewhere:
+#   settings put secure screensaver_components com.gathin.tvhome/.ClockDream
+#
+# Tested after the debloat: launcher Inputs menu lists HDMI 1-3, AV and Live TV and HDMI 1 opens in Live TV; YouTube,
+# Netflix, JioHotstar, Prime Video, NetMirror, Spotify, SonyLIV, Xiaomi TV+, Send Files to TV, TV Manager, Gallery,
+# Media Player and Play Store open; the remote's Home, voice and Netflix buttons, Chromecast and Miracast work.
+# While the Screen Mirroring screen is open the TV leaves Wi-Fi, so network ADB drops; Back brings both back.
+# The dock in config.json (5 columns) is the owner's: tools/theme.sh can push it, or copy it into config.xml.
+
+# ---- Xiaomi and Google telemetry ----
+com.miui.tv.analytics
+com.xiaomi.statistic
+com.google.android.feedback                     # crash / feedback reporting
+
+# ---- Xiaomi content, ads and recommendation rows ----
+com.mitv.tvhome.atv                             # PatchWall, with the Glance for Mi block; only after the new launcher is Home
+com.mitv.tvhome.michannel                       # Mi recommendation channels
+com.xm.webcontent                               # Xiaomi promo web content
+android.autoinstalls.config.xiaomi.amelie       # partner app auto-install config
+com.google.android.tvrecommendations            # stock launcher recommendation rows
+
+# ---- Screensavers, replaced by the launcher's Clock dream ----
+com.mitv.dream                                  # Xiaomi screensaver (Firebase, skyeye memory monitor)
+com.google.android.backdrop                     # Google ambient screensaver
+
+# ---- Firmware updater, by owner's choice (see header) ----
+com.xiaomi.mitv.updateservice
+
+# ---- Preloaded apps ----
+com.xiaomo.tv.milegal                           # Xiaomi legal / privacy screens
+com.mstar.android.tv.disclaimercustomization    # vendor disclaimer screen
+com.mediatek.wwtv.webview                       # vendor web view shell
+fusion.android.tv.demo                          # retail store demo loop
+mediatek.factorymenu.ui                         # factory menu: disabled, never launched
+
+# ---- Optional, by owner's choice ----
+com.google.android.youtube.tvmusic
+com.google.android.videos                       # Google TV / Play Movies
+com.mitv.tvlock                                 # Xiaomi TV lock / parental password
+com.xiaomi.amazon.alexa                         # Alexa / Mi smart-home bridge, starts services at boot
+com.google.android.play.games
+com.xiaomi.mimusic2                             # Mi Music

@@ -1,0 +1,12 @@
+{
+  "dock_apps": [
+    "com.google.android.youtube.tv",
+    "com.netflix.ninja",
+    "in.startv.hotstar",
+    "com.amazon.amazonvideo.livingroom",
+    "app.netmirror.newtv"
+  ],
+  "hidden_apps": ["com.mediatek.wwtv.tvcenter"],
+  "live_tv_package": "com.mediatek.wwtv.tvcenter",
+  "columns": 5
+}
