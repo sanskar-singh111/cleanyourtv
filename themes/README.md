@@ -21,6 +21,7 @@ powershell -ExecutionPolicy Bypass -File tools\theme.ps1 -TvHost 192.168.1.50 th
 | `ruska/` | A Finnish autumn ("ruska") dusk over a lake: spruce shoreline, birches in autumn colour, a few falling leaves, drawn in code by `make_wallpaper.py`. The app-colour glow stays off the picture so the autumn colours keep their own light; the dock is 70% opaque so the lake shows through, and the focus glows in the app's colour without overshoot | <img src="ruska/screenshot.jpg" width="320" alt="ruska theme"> |
 | `scenes/` | 14 dark illustrated landscapes in `wallpapers/`, a new one every hour; drawn from code by `tools/scenes_wallpapers.py` | <img src="scenes/screenshot.jpg" width="320" alt="scenes theme"> |
 | `six-columns/` | Six smaller tiles per row and one grid row visible under the dock | <img src="six-columns/screenshot.jpg" width="320" alt="six-columns theme"> |
+| `sanskar/` | A quiet black Home: only the time top left, bare Wi-Fi, Inputs and Settings icons, one row of five apps with no title or glow | <img src="sanskar/screenshot.jpg" width="320" alt="sanskar theme"> |
 
 Every theme folder has a `screenshot.jpg` of Home with that theme on a real TV. `tools/theme.sh` never
 pushes it; it is only here so you can see a theme before you try it.
@@ -79,6 +80,8 @@ A new key needs one there in the same pull request.
 | `advanced_effects` | bool | Optional lifted tile, icon zoom, smooth ambient colour and app opening effects; false by default |
 | `show_home_settings_shortcut` | bool | Keep the optional Default-home tile visible when the TV has a home picker; false by default |
 | `show_stats` | bool | One line under the clock with CPU, free memory and free storage. Off unless set |
+| `clock_only` | bool | Only the time top left: no greeting, no date (`false` by default) |
+| `bare_buttons` | bool | Wi-Fi, Inputs and Settings as bare white icons, in that order: no labels, no network name, no pill behind them; a focused icon grows slightly (`false` by default) |
 | `handle_view_inputs` | bool | Answer the system input switcher (`VIEW_INPUTS`, what the remote's Input button becomes) with the Inputs menu, for sets whose stock launcher was its only handler (Hisense huangshan); `false` by default so a TV with its own input picker never gets a chooser |
 | `background_color` | `#RRGGBB` | Colour behind everything; black by default |
 | `sky_intensity` | 0 to 100 | Time-of-day backdrop: a dark gradient that follows the clock, 0 hides it (default) |

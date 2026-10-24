@@ -178,6 +178,11 @@
          Gregorian date. -->
     <bool name="shamsi_date">false</bool>
 
+    <!-- Only the time top left: no greeting, no date. Off by default; a theme can set "clock_only": true. -->
+    <bool name="clock_only">false</bool>
+    <!-- Wi-Fi, Inputs and Settings as bare white icons in that order: no labels, no network name, no pill behind
+         them; a focused one grows slightly. Off by default; a theme can set "bare_buttons": true. -->
+    <bool name="bare_buttons">false</bool>
     <!-- A name after the greeting: "Mr. Trịnh" shows GOOD MORNING, MR. TRỊNH. Empty: the greeting alone. -->
     <string name="greeting_name" translatable="false"></string>
     <!-- Optional VPN app the network pill opens (hold the pill for Wi-Fi settings), e.g. the package of the

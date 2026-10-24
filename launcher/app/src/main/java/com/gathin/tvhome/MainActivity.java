@@ -61,6 +61,7 @@ import android.view.ViewGroup;
 import android.view.ViewTreeObserver;
 import android.view.Window;
 import android.view.animation.AnimationUtils;
+import android.view.animation.DecelerateInterpolator;
 import android.view.animation.LayoutAnimationController;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
@@ -451,6 +452,14 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             date.setTextSize(11f);
             date.setPadding(0, (int) (4 * density), 0, 0);
         }
+        if (cfg.clockOnly) {
+            // The time alone: the greeting, then the date block and the thin divider in front of it.
+            greeting.setVisibility(View.GONE);
+            View dateBlock = (View) findViewById(R.id.date).getParent();
+            ViewGroup clockRow = (ViewGroup) dateBlock.getParent();
+            clockRow.getChildAt(clockRow.indexOfChild(dateBlock) - 1).setVisibility(View.GONE);
+            dateBlock.setVisibility(View.GONE);
+        }
         vpnApp = cfg.vpnApp;
         moduleCards = cfg.moduleCards;
         hiddenApps = new HashSet<>(cfg.hiddenApps);
@@ -665,7 +674,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 focusTile(lastFocused % COLUMNS);
                 return true;
             }
-            int firstButton = btnInputs.getVisibility() == View.VISIBLE ? R.id.btnInputs : firstTopButton().getId();
+            int firstButton = firstShownTopButton().getId();
             int leftButton = rtlMenuBar ? R.id.btnSettings : firstButton;
             int rightButton = rtlMenuBar ? firstButton : R.id.btnSettings;
             if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) return v.getId() == leftButton;
@@ -684,6 +693,24 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             }
         }
         if (festive) applyFestiveSkin((TextView) btnInputs, (TextView) btnSettings);
+        if (cfg.bareButtons) {
+            // Wi-Fi first, then Inputs and Settings: white icons with nothing behind them. The pill's focused colours
+            // would turn the icon dark on the black screen, so the tint stays white and focus only grows the icon.
+            wifiIconOnly = true;
+            LinearLayout topButtons = findViewById(R.id.topButtons);
+            topButtons.removeView(btnWifi);
+            topButtons.addView(btnWifi, 0);
+            ColorStateList white = ColorStateList.valueOf(Color.WHITE);
+            if (wifiOnlineTint != null) wifiPlainTint = white;
+            for (TextView button : new TextView[]{btnWifi, (TextView) btnInputs, (TextView) btnSettings}) {
+                makeIconOnly(button);
+                button.setBackground(null);
+                button.setCompoundDrawableTintList(white);
+                button.setOnFocusChangeListener((view, focused) -> view.animate()
+                        .scaleX(focused ? AppAdapter.FOCUS_SCALE : 1f).scaleY(focused ? AppAdapter.FOCUS_SCALE : 1f)
+                        .setDuration(180).setInterpolator(new DecelerateInterpolator()).start());
+            }
+        }
 
         // Hide the glass when focus leaves the tiles.
         getWindow().getDecorView().getViewTreeObserver().addOnGlobalFocusChangeListener((oldF, newF) -> {
@@ -2133,6 +2160,15 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private View firstTopButton() {
         if (btnWifi.getVisibility() == View.VISIBLE) return btnWifi;
         if (btnReorder.getVisibility() == View.VISIBLE) return btnReorder;
+        return findViewById(R.id.btnSettings);
+    }
+
+    /** The leftmost shown top-bar button, whatever order the buttons are in (bare_buttons puts Wi-Fi first). */
+    private View firstShownTopButton() {
+        ViewGroup topButtons = findViewById(R.id.topButtons);
+        for (int i = 0; i < topButtons.getChildCount(); i++) {
+            if (topButtons.getChildAt(i).getVisibility() == View.VISIBLE) return topButtons.getChildAt(i);
+        }
         return findViewById(R.id.btnSettings);
     }
 
