@@ -1661,6 +1661,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     }
 
     private void openMoreApps() {
+        // The dock's line and glow belong to Home: opened from the top-bar icon they would still show behind the grid.
+        hideHero();
         moreAdapter.showRest(adapter);
         moreGrid.setAdapter(moreAdapter);
         showHome(false);
