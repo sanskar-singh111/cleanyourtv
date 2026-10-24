@@ -82,6 +82,7 @@ A new key needs one there in the same pull request.
 | `show_stats` | bool | One line under the clock with CPU, free memory and free storage. Off unless set |
 | `clock_only` | bool | Only the time top left: no greeting, no date (`false` by default) |
 | `bare_buttons` | bool | Wi-Fi, Inputs and Settings as bare white icons, in that order: no labels, no network name, no pill behind them; a focused icon grows slightly (`false` by default) |
+| `plain_focus` | bool | Focus shows only as the focused tile growing 10% over 180 ms, eased out: no glass highlight, no dock band, no names under the tiles on Home, and the Inputs and Settings menus as plain white rows with no panel (`false` by default) |
 | `handle_view_inputs` | bool | Answer the system input switcher (`VIEW_INPUTS`, what the remote's Input button becomes) with the Inputs menu, for sets whose stock launcher was its only handler (Hisense huangshan); `false` by default so a TV with its own input picker never gets a chooser |
 | `background_color` | `#RRGGBB` | Colour behind everything; black by default |
 | `sky_intensity` | 0 to 100 | Time-of-day backdrop: a dark gradient that follows the clock, 0 hides it (default) |

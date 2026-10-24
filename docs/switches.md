@@ -30,3 +30,4 @@ the rules. Keys from before this rule are on its wanted list; a screenshot for o
 | `home_idle_clock_minutes` | <img src="clock-screensaver.png" width="320" alt="home_idle_clock_minutes on a TV"> |
 | `clock_only` | <img src="../themes/sanskar/screenshot.jpg" width="320" alt="clock_only on a TV"> |
 | `bare_buttons` | <img src="../themes/sanskar/screenshot.jpg" width="320" alt="bare_buttons on a TV"> |
+| `plain_focus` | <img src="switches/plain_focus.jpg" width="320" alt="plain_focus on a TV"> |

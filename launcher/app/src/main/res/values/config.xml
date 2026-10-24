@@ -183,6 +183,10 @@
     <!-- Wi-Fi, Inputs and Settings as bare white icons in that order: no labels, no network name, no pill behind
          them; a focused one grows slightly. Off by default; a theme can set "bare_buttons": true. -->
     <bool name="bare_buttons">false</bool>
+    <!-- Focus shows only as the focused tile growing 10% with a short ease (180 ms): no glass highlight, no dock band,
+         no names under the tiles on Home, and the Inputs and Settings menus as plain white rows with no panel. Off by
+         default; a theme can set "plain_focus": true. -->
+    <bool name="plain_focus">false</bool>
     <!-- A name after the greeting: "Mr. Trịnh" shows GOOD MORNING, MR. TRỊNH. Empty: the greeting alone. -->
     <string name="greeting_name" translatable="false"></string>
     <!-- Optional VPN app the network pill opens (hold the pill for Wi-Fi settings), e.g. the package of the

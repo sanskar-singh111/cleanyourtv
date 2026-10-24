@@ -397,6 +397,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         sky.setIntensity(cfg.skyIntensity);
         glass = findViewById(R.id.glass);
         if (festive) glass.setAccent(festival.accentColor());
+        // plain_focus: the growing tile is the only sign of focus, so the highlight is never drawn.
+        plainFocus = cfg.plainFocus;
+        if (plainFocus) glass.setVisibility(View.GONE);
         ambient = findViewById(R.id.ambient);
         // The glow is one bitmap, so its alpha can be applied while drawing it. Otherwise every frame of
         // a fade renders it into a full-screen offscreen buffer first.
@@ -520,7 +523,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             public void onChildViewDetachedFromWindow(@NonNull View v) {
             }
         });
-        if (dockRow) grid.addItemDecoration(new DockDecoration(COLUMNS, density, cinematic, cfg.alwaysShowNames, cfg.dockOpacity, cfg.dockGlass, cfg.dockEvenPadding));
+        if (dockRow && !cfg.plainFocus) grid.addItemDecoration(new DockDecoration(COLUMNS, density, cinematic, cfg.alwaysShowNames, cfg.dockOpacity, cfg.dockGlass, cfg.dockEvenPadding));
         if (cfg.fadeRows) TopFade.attach(grid, 48 * density);
         // Reduced motion: the tiles are simply there, with no entrance (reloadApps skips it there too).
         if (animations && !reducedMotion) {
@@ -706,9 +709,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 makeIconOnly(button);
                 button.setBackground(null);
                 button.setCompoundDrawableTintList(white);
-                button.setOnFocusChangeListener((view, focused) -> view.animate()
-                        .scaleX(focused ? AppAdapter.FOCUS_SCALE : 1f).scaleY(focused ? AppAdapter.FOCUS_SCALE : 1f)
-                        .setDuration(180).setInterpolator(new DecelerateInterpolator()).start());
+                button.setOnFocusChangeListener(this::grow);
             }
         }
 
@@ -2482,6 +2483,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         }
     }
 
+    /** config.xml plain_focus: no highlight anywhere, focus only grows (tiles, popup rows). */
+    private boolean plainFocus;
     /** config.xml icon_only_buttons. */
     private boolean iconOnlyButtons;
     /** config.xml top_menu: Inputs, Wi-Fi and Settings folded into one gear. */
@@ -2876,6 +2879,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     }
 
     private PopupWindow glassPopup(View panel, int width) {
+        if (plainFocus) {
+            panel.setBackground(null);
+            panel.setElevation(0f);
+        }
         final PopupWindow popup = new PopupWindow(panel, width, ViewGroup.LayoutParams.WRAP_CONTENT, true);
         popup.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));   // needed for Back to dismiss
         popup.setOutsideTouchable(true);
@@ -2900,6 +2907,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     }
 
     private void addSeparator(LinearLayout rows) {
+        if (plainFocus) return;
         View line = new View(this);
         line.setBackgroundColor(0x1FFFFFFF);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, (int) density);
@@ -2930,7 +2938,29 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             popup.dismiss();
             action.run();
         });
+        plainRow(row);
         rows.addView(row);
+    }
+
+    /** plain_focus: a popup row as white text with no box behind it; focus grows it from its leading edge. */
+    private void plainRow(View row) {
+        if (!plainFocus) return;
+        row.setBackground(null);
+        ColorStateList white = ColorStateList.valueOf(Color.WHITE);
+        ((ImageView) row.findViewById(R.id.icon)).setImageTintList(white);
+        ((TextView) row.findViewById(R.id.title)).setTextColor(white);
+        ((TextView) row.findViewById(R.id.status)).setTextColor(0x99FFFFFF);
+        boolean rtl = getResources().getBoolean(R.bool.rtl_menu_bar);
+        row.setOnFocusChangeListener((v, focused) -> {
+            v.setPivotX(rtl ? v.getWidth() : 0f);
+            grow(v, focused);
+        });
+    }
+
+    /** The one focus state of bare_buttons and plain_focus: a 10% grow over 180 ms, eased out. */
+    private void grow(View v, boolean focused) {
+        float s = focused ? AppAdapter.FOCUS_SCALE : 1f;
+        v.animate().scaleX(s).scaleY(s).setDuration(180).setInterpolator(new DecelerateInterpolator()).start();
     }
 
     // ---- launcher settings and module cards -------------------------------------------------------
@@ -3038,6 +3068,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
     private void addSettingsMenuRow(LinearLayout rows, PopupWindow popup, int title, Runnable action) {
         View row = getLayoutInflater().inflate(R.layout.item_input, rows, false);
+        plainRow(row);
         row.findViewById(R.id.icon).setVisibility(View.GONE);
         row.findViewById(R.id.dot).setVisibility(View.GONE);
         row.findViewById(R.id.status).setVisibility(View.GONE);
