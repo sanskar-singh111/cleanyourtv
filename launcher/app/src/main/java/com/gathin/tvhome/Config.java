@@ -238,6 +238,8 @@ final class Config {
     final boolean taglineCentered;
     /** Room under the dock row in dp, which sets how low the dock sits (config.xml dock_bottom_room); -1 keeps the default. */
     final int dockBottomRoom;
+    /** Names under the tiles in the More apps grid (config.xml more_apps_names); false shows the art alone. */
+    final boolean moreAppsNames;
 
     private Config(List<String> dockApps, boolean fillDock, List<String> hiddenApps, List<String> libraryApps, String liveTvPackage,
                    String liveTvAction, String liveTvInputId, Map<String, String> launchActions, Map<String, String> appLabels,
@@ -255,7 +257,7 @@ final class Config {
                    Map<String, Set<String>> wallpaperMoods, int bottomShade, int scrollDim, String weatherCity,
                    Map<String, File> dockLogos, int dockLogoSize, Map<String, List<String>> dockTaglines,
                    Map<String, Integer> appColors, boolean homeReturnsToLast, boolean strictDockNav,
-                   boolean taglineCentered, int dockBottomRoom) {
+                   boolean taglineCentered, int dockBottomRoom, boolean moreAppsNames) {
         this.bottomShade = bottomShade;
         this.scrollDim = scrollDim;
         this.weatherCity = weatherCity;
@@ -267,6 +269,7 @@ final class Config {
         this.strictDockNav = strictDockNav;
         this.taglineCentered = taglineCentered;
         this.dockBottomRoom = dockBottomRoom;
+        this.moreAppsNames = moreAppsNames;
         this.handleViewInputs = handleViewInputs;
         this.tileMenu = tileMenu;
         this.inputKeycodes = inputKeycodes;
@@ -454,6 +457,7 @@ final class Config {
         boolean strictDockNav = res.getBoolean(R.bool.strict_dock_nav);
         String taglineAlign = res.getString(R.string.tagline_align).trim();
         int dockBottomRoom = res.getInteger(R.integer.dock_bottom_room);
+        boolean moreAppsNames = res.getBoolean(R.bool.more_apps_names);
         boolean applied = false;
 
         File dir = dir(ctx);
@@ -549,6 +553,7 @@ final class Config {
             strictDockNav = bool(json, "strict_dock_nav", strictDockNav);
             taglineAlign = string(json, "tagline_align", taglineAlign);
             dockBottomRoom = integer(json, "dock_bottom_room", dockBottomRoom, 0, 400);
+            moreAppsNames = bool(json, "more_apps_names", moreAppsNames);
         }
         // A theme push or reset invalidates choices made on the TV. On first use, remember the
         // current theme without clearing choices from an older launcher version.
@@ -608,7 +613,7 @@ final class Config {
                 Math.max(0, idleClockMinutes), keyFilter, dockGlass, glowStyle, wallpaperCaptions, handleViewInputs, tileMenu, dockEvenPadding, cinematicDots, cinematicWhiteFocus, wifiStatusColor, cinematicScrim, cinematicArt, wallpaperMoods,
                 clamp(bottomShade, 0, 100), clamp(scrollDim, 0, 90), weatherCity, themeFiles(dir, packageMap(dockLogos)),
                 clamp(dockLogoSize, 50, 200), dockTaglines, colorMap(packageMap(appColors)), homeReturnsToLast, strictDockNav,
-                "center".equalsIgnoreCase(taglineAlign), dockBottomRoom < 0 ? -1 : Math.min(400, dockBottomRoom));
+                "center".equalsIgnoreCase(taglineAlign), dockBottomRoom < 0 ? -1 : Math.min(400, dockBottomRoom), moreAppsNames);
     }
 
     /**

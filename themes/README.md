@@ -95,6 +95,7 @@ A new key needs one there in the same pull request.
 | `home_returns_to_last` | bool | Home brings focus back to what was used last: from an app, the tile it was opened from (the More apps grid stays open); on Home already, the dock app focused last. `false` goes to the first tile (default) |
 | `tagline_align` | string | Where the `dock_taglines` line sits above the dock: `left`, starting where the dock's first logo starts (default), or `center` |
 | `dock_bottom_room` | 0 to 400 | Room under the dock row in dp, which sets how low the dock sits: less room, lower dock. Leave it out for the built-in placement |
+| `more_apps_names` | bool | Names under the tiles in the More apps grid (`true` by default); `false` shows the icons and banners alone |
 | `strict_dock_nav` | bool | Up from the dock always goes to the first of the top-right buttons, never wherever the focus search lands, and Left and Right stop at the dock's ends: Right on the last app no longer jumps to More apps (`false` by default) |
 | `handle_view_inputs` | bool | Answer the system input switcher (`VIEW_INPUTS`, what the remote's Input button becomes) with the Inputs menu, for sets whose stock launcher was its only handler (Hisense huangshan); `false` by default so a TV with its own input picker never gets a chooser |
 | `background_color` | `#RRGGBB` | Colour behind everything; black by default |

@@ -75,6 +75,8 @@ place name never shows on screen, and `""` turns the weather off.
 - `"dock_bottom_room"`: how low the dock sits, as the room under it (20 now; bigger raises it).
 - `"library_button"`: `true` puts the More apps grid icon in the top bar, with no button under the dock.
   `"show_inputs_pill": true` brings the Inputs icon back.
+- `"more_apps_names"`: `false` shows More apps as icons and banners only; `true` brings the names back.
+- `"columns"`: dock slots and More apps tiles per row (6 now, for six dock apps).
 - `"scroll_dim"`: how much darker the wallpaper gets in More apps (half of it as it opens, the rest as you scroll),
   0 to 90.
 

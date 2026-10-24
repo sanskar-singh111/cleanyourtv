@@ -213,6 +213,8 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     private final boolean moreApps;
     /** This adapter is the More apps grid: every app after the dock, named, with no button of its own. */
     private boolean rest;
+    /** more_apps_names: false leaves the More apps grid without names, the art alone. */
+    private final boolean moreAppsNames;
     /** Package to the action its tile sends instead of the start screen (config.xml, launch_actions). */
     private final Map<String, String> launchActions;
     /** Hold OK opens the activity's tile menu (config.xml, tile_menu); false opens App info, as before. */
@@ -240,6 +242,7 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         // more_apps with library_button: the More apps icon sits in the top bar, so nothing under the dock.
         this.showLibrary = cfg.appLibrary || cfg.moreApps && !cfg.libraryButton;
         this.moreApps = cfg.moreApps;
+        this.moreAppsNames = cfg.moreAppsNames;
         this.reducedMotion = cfg.reducedMotion;
         this.focusOvershoot = cfg.focusOvershoot;
         this.plainFocus = cfg.plainFocus;
@@ -463,8 +466,8 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         h.logo = e.logo != null && !rest && position < dockSize;
         // The dock has no labels, unless always_show_names asks for them (DockDecoration then makes room in the band).
         // A floating logo always has its name, faded in under it on focus.
-        h.name.setVisibility(!h.logo && (plainFocus && !rest || dockRow && position < dockSize && restNameAlpha == 0f)
-                ? View.INVISIBLE : View.VISIBLE);
+        h.name.setVisibility(!h.logo && (plainFocus && !rest || dockRow && position < dockSize && restNameAlpha == 0f
+                || rest && !moreAppsNames) ? View.INVISIBLE : View.VISIBLE);
         boolean focused = h.card.isFocused();   // a rebind after reload() can hit the focused tile
         h.name.setAlpha(focused ? 1f : restNameAlpha);
         h.card.setScaleX(focused && animations ? focusScale() : 1f);

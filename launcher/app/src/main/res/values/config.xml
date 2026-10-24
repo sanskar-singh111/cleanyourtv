@@ -236,6 +236,9 @@
     <!-- Room under the dock row in dp, 0 to 400, which sets how low the dock sits: less room, lower dock. -1 keeps the
          built-in placement (default). A theme can set "dock_bottom_room": 20. -->
     <integer name="dock_bottom_room">-1</integer>
+    <!-- Names under the tiles in the More apps grid (more_apps). true by default; false shows the icons and banners
+         alone. A theme can set "more_apps_names": false. -->
+    <bool name="more_apps_names">true</bool>
     <!-- A name after the greeting: "Mr. Trịnh" shows GOOD MORNING, MR. TRỊNH. Empty: the greeting alone. -->
     <string name="greeting_name" translatable="false"></string>
     <!-- Optional VPN app the network pill opens (hold the pill for Wi-Fi settings), e.g. the package of the
