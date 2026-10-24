@@ -21,7 +21,9 @@ import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.LinearGradient;
+import android.graphics.Matrix;
 import android.graphics.Paint;
+import android.graphics.PixelFormat;
 import android.graphics.RadialGradient;
 import android.graphics.Rect;
 import android.graphics.Shader;
@@ -286,6 +288,25 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private boolean libraryFocusPending;
     private RecyclerView.OnScrollListener pendingFocusScroll;
 
+    /** weather_city: the weather beside the clock, or null when the theme has no city. */
+    private Weather weather;
+    private View weatherBlock;
+    private WeatherIcon weatherIcon;
+    private TextView weatherText;
+    /** dock_taglines by package; empty leaves the shelf to dock_title. */
+    private Map<String, List<String>> dockTaglines = Collections.emptyMap();
+    /** Returns to Home so far, kept across restarts: each one shows the next of an app's lines (Taglines). */
+    private int taglineVisit;
+    /** scroll_dim: the black laid over the background as the page scrolls, and its strength at full scroll. */
+    private View scrollShade;
+    private float scrollDimMax;
+    /** glow_style dock: where the dock's middle sits, as a share of the screen height, for the glow behind it. */
+    private float dockGlowY = 0.78f;
+    private boolean homeReturnsToLast;
+    private boolean dockUpToButtons;
+    /** config dock_title: the dock app's name above the dock (dock_taglines may show a line there instead). */
+    private boolean dockTitleShown;
+
     private final Handler handler = new Handler(Looper.getMainLooper());
     /** Refreshes the network pill when the connection changes: at boot Wi-Fi often connects after Home is shown. */
     private final ConnectivityManager.NetworkCallback networkCallback = new ConnectivityManager.NetworkCallback() {
@@ -402,6 +423,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         // black under it is a second full-screen fill on every frame for nothing. The starting window still uses
         // the theme's background, so launch looks the same.
         getWindow().setBackgroundDrawable(null);
+        // wallpaper_true_color: a 32-bit window too, so a TV that picks 16-bit for opaque windows does not band the
+        // picture again on the way to the screen.
+        if (cfg.wallpaperTrueColor) getWindow().setFormat(PixelFormat.RGBA_8888);
         wallpaperPlayer = new WallpaperPlayer(this, root, cfg);
         sky = findViewById(R.id.sky);
         sky.setIntensity(cfg.skyIntensity);
@@ -417,6 +441,19 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         ambientGlow = cfg.ambientGlow;
         appGlow = cfg.appGlow;
         if (!ambientGlow) ambient.setVisibility(View.GONE);
+        // Under the glow, over the wallpaper: the bottom gradient, then the scroll shade. Neither exists when off.
+        if (cfg.bottomShade > 0) addBottomShade(cfg.bottomShade);
+        scrollDimMax = cfg.scrollDim / 100f;
+        if (scrollDimMax > 0f) {
+            scrollShade = new View(this);
+            scrollShade.setBackgroundColor(Color.BLACK);
+            scrollShade.setAlpha(0f);
+            scrollShade.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+            root.addView(scrollShade, root.indexOfChild(ambient), new FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        }
+        homeReturnsToLast = cfg.homeReturnsToLast;
+        dockUpToButtons = cfg.dockUpToButtons;
         heroName = findViewById(R.id.heroName);
         hero = findViewById(R.id.hero);
         // The hero is now a group (name, and the cinematic lines): without this every fade of the default
@@ -433,7 +470,20 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (cinematic) setUpCinematicShelf(cfg.cinematicScrim);
         // dock_title false: the name above the dock (and the cinematic lines under it) never shows; the glow
         // still follows the dock.
-        if (!cfg.dockTitle) hero.setVisibility(View.GONE);
+        dockTaglines = cfg.dockTaglines;
+        dockTitleShown = cfg.dockTitle;
+        taglineVisit = getSharedPreferences(Config.SETTINGS_NAME, MODE_PRIVATE).getInt("tagline_visit", 0);
+        if (!cfg.dockTitle && dockTaglines.isEmpty()) hero.setVisibility(View.GONE);
+        if (!dockTaglines.isEmpty()) {
+            // A line, not a name: smaller, centred over the dock's floating row.
+            FrameLayout.LayoutParams hlp = (FrameLayout.LayoutParams) hero.getLayoutParams();
+            hlp.width = ViewGroup.LayoutParams.MATCH_PARENT;
+            hlp.setMarginStart(0);
+            hero.setLayoutParams(hlp);
+            ((LinearLayout) hero).setGravity(Gravity.CENTER_HORIZONTAL);
+            heroName.setTextSize(TypedValue.COMPLEX_UNIT_SP, 30f);
+            heroName.setLetterSpacing(0f);
+        }
         greeting = findViewById(R.id.greeting);
         clockBlock = findViewById(R.id.leftBlock);
         greetingColor = greeting.getCurrentTextColor();
@@ -473,6 +523,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             clockRow.getChildAt(clockRow.indexOfChild(dateBlock) - 1).setVisibility(View.GONE);
             dateBlock.setVisibility(View.GONE);
         }
+        if (!cfg.weatherCity.isEmpty()) addWeather(cfg.weatherCity);
         vpnApp = cfg.vpnApp;
         moduleCards = cfg.moduleCards;
         hiddenApps = new HashSet<>(cfg.hiddenApps);
@@ -582,6 +633,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         grid.addOnScrollListener(new RecyclerView.OnScrollListener() {
             @Override
             public void onScrolled(@NonNull RecyclerView rv, int dx, int dy) {
+                if (scrollShade != null) updateScrollShade(rv);
                 if (!glassShown) return;
                 glassTargetY -= dy;
                 glassScrollShift -= dy;
@@ -824,6 +876,17 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (intent == null || !intent.hasCategory(Intent.CATEGORY_HOME)) return;
         if (faded) unfade(250);
         restartIdleClock();
+        if (homeReturnsToLast) {
+            // Back to what was used last: from an app, the tile it was opened from (in the More apps grid too, which
+            // stays open); on Home already, the dock app focused last.
+            if (stopped) {
+                tileRefresh.onHomeAgain();
+                return;
+            }
+            closeMoreApps(false);
+            grid.post(() -> focusTile(lastFocused));
+            return;
+        }
         closeMoreApps(false);
         grid.scrollToPosition(0);
         lastFocused = 0;
@@ -840,6 +903,12 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     @Override
     protected void onStart() {
         super.onStart();
+        if (!dockTaglines.isEmpty()) {
+            // Each time Home comes back in front, the next line. Saved, so a restart does not start over.
+            taglineVisit++;
+            getSharedPreferences(Config.SETTINGS_NAME, MODE_PRIVATE).edit().putInt("tagline_visit", taglineVisit).apply();
+            heroName.setText("");   // the shelf fills in again with this visit's line
+        }
         stopped = false;
         started = true;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -899,6 +968,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (showStats) startStats();
         sky.update();
         wallpaperPlayer.start();
+        if (weather != null) weather.resume();
         handler.postDelayed(minuteTick, MINUTE_MS);
         if (festive && diya != null) {
             diya.start();
@@ -1067,7 +1137,15 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
     /** idle_fade_minutes: what fades away, everything but the background, sky and wallpaper under it. */
     private View[] fadingViews() {
-        return moreGrid != null ? new View[]{homeContent(), moreGrid} : new View[]{homeContent()};
+        List<View> views = new ArrayList<>();
+        views.add(homeContent());
+        if (moreGrid != null) views.add(moreGrid);
+        // The line above the dock and its glow go too, while they show (a hidden shelf stays hidden on the way back).
+        if (heroShown) {
+            views.add(hero);
+            if (ambientGlow) views.add(ambient);
+        }
+        return views.toArray(new View[0]);
     }
 
     private void unfade(int ms) {
@@ -1083,6 +1161,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (faded) unfade(0);
         endReorder();   // Home or another app while reordering keeps the order so far
         wallpaperPlayer.stop();
+        if (weather != null) weather.pause();
         stopAmbientAnimation();
         hero.animate().cancel();
         ambient.animate().cancel();
@@ -1145,6 +1224,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         super.onDestroy();
         unregisterReceiver(packageReceiver);
         wallpaperPlayer.close();
+        if (weather != null) weather.close();
         ConnectivityManager cm = getSystemService(ConnectivityManager.class);
         TvInputManager tim = (TvInputManager) getSystemService(TV_INPUT_SERVICE);
         if (tim != null) tim.unregisterCallback(inputCallback);
@@ -1540,6 +1620,14 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         moreGrid.setItemAnimator(null);
         moreGrid.setOverScrollMode(View.OVER_SCROLL_NEVER);
         moreGrid.setVisibility(View.GONE);
+        if (scrollShade != null) {
+            moreGrid.addOnScrollListener(new RecyclerView.OnScrollListener() {
+                @Override
+                public void onScrolled(@NonNull RecyclerView rv, int dx, int dy) {
+                    updateScrollShade(rv);
+                }
+            });
+        }
         root.addView(moreGrid, root.indexOfChild(glass), new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         // Its tiles only open their app: the dock's hero, glass and row rules do not apply here.
@@ -1587,6 +1675,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (!moreAppsOpen()) return;
         moreGrid.setVisibility(View.GONE);
         moreGrid.setAdapter(null);   // lets go of the grid's tiles; Home's adapter keeps the artwork
+        if (scrollShade != null) updateScrollShade(grid);
         moreAdapter.clear();
         showHome(true);
         if (refocus) focusLibrary();
@@ -1727,8 +1816,11 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     // ---- top shelf -------------------------------------------------------------------------------
 
     private void showHero(int position, float dockTopInRoot) {
-        String label = adapter.labelAt(position);
+        // dock_taglines: this visit's line for the app; an app without one shows its name only under dock_title.
+        List<String> lines = dockTaglines.get(adapter.packageAt(position));
+        String label = lines != null ? Taglines.pick(lines, taglineVisit) : dockTitleShown ? adapter.labelAt(position) : "";
         int color = adapter.ambientColorAt(position);
+        if (root.getHeight() > 0) dockGlowY = (dockTopInRoot + tileRect.height() / 2f) / root.getHeight();
         float y = dockTopInRoot - 14 * density - 26 * density - hero.getHeight();
         boolean changed = !label.contentEquals(heroName.getText());
         if (cinematic && heroArtAlpha > 0f) showHeroArt(position);
@@ -1941,6 +2033,15 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                         new int[]{0xA6FFFFFF, 0x47FFFFFF, 0x00FFFFFF},
                         new float[]{0f, 0.5f, 1f},
                         Shader.TileMode.CLAMP));
+            } else if (Config.GLOW_DOCK.equals(glowStyle)) {
+                // A wide, low ellipse behind the dock's row, so the focused app's colour sits under its logo.
+                RadialGradient dock = new RadialGradient(0f, 0f, w * 0.42f,
+                        new int[]{0x8CFFFFFF, 0x38FFFFFF, 0x00FFFFFF}, new float[]{0f, 0.5f, 1f}, Shader.TileMode.CLAMP);
+                Matrix m = new Matrix();
+                m.setScale(1f, 0.42f);
+                m.postTranslate(w * 0.5f, h * Math.max(0.3f, Math.min(0.95f, dockGlowY)));
+                dock.setLocalMatrix(m);
+                paint.setShader(dock);
             } else if (Config.GLOW_HORIZON.equals(glowStyle)) {
                 // The colour washes down from the top edge and fades out three quarters of the way down,
                 // with a brighter band along the top like light over a horizon.
@@ -1968,6 +2069,88 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         }
         // The default tint mode, SRC_IN, keeps the mask's alpha and takes the colour from the tint.
         glow.setTint(0xFF000000 | color);
+    }
+
+    /**
+     * bottom_shade: black rising from the bottom edge, strongest under the dock, so the row sits on dark over any
+     * wallpaper. One tall, narrow bitmap stretched over the screen like the glow; filtering keeps the steps smooth.
+     */
+    private void addBottomShade(int percent) {
+        int h = 540;
+        Bitmap bmp = Bitmap.createBitmap(4, h, Bitmap.Config.ARGB_8888);
+        Paint paint = new Paint();
+        paint.setDither(true);
+        int a = percent * 255 / 100;
+        paint.setShader(new LinearGradient(0, 0, 0, h,
+                new int[]{0, 0, (a * 45 / 100) << 24, (a * 85 / 100) << 24, a << 24},
+                new float[]{0f, 0.38f, 0.62f, 0.82f, 1f}, Shader.TileMode.CLAMP));
+        new Canvas(bmp).drawRect(0, 0, 4, h, paint);
+        BitmapDrawable shade = new BitmapDrawable(getResources(), bmp);
+        shade.setGravity(Gravity.FILL);
+        shade.setFilterBitmap(true);
+        View view = new View(this);
+        view.setBackground(shade);
+        view.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        root.addView(view, root.indexOfChild(ambient), new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+    }
+
+    /** scroll_dim: the further this grid has scrolled, up to half a screen, the darker the background behind it. */
+    private void updateScrollShade(RecyclerView rv) {
+        int h = root.getHeight();
+        if (h <= 0) return;
+        float progress = Math.min(1f, rv.computeVerticalScrollOffset() / (h * 0.5f));
+        scrollShade.setAlpha(scrollDimMax * progress);
+    }
+
+    /**
+     * weather_city: a small outline icon and the temperature beside the time, on its baseline like the AM/PM mark.
+     * Hidden until there is a reading (Weather keeps the last one, so that is usually at once).
+     */
+    private void addWeather(String city) {
+        View clock = findViewById(R.id.clock);
+        ViewGroup row = (ViewGroup) clock.getParent();
+        LinearLayout block = new LinearLayout(this);
+        block.setOrientation(LinearLayout.HORIZONTAL);
+        block.setGravity(Gravity.CENTER_VERTICAL);
+        block.setFocusable(false);
+        block.setVisibility(View.GONE);
+        ImageView icon = new ImageView(this);
+        weatherIcon = new WeatherIcon();
+        icon.setImageDrawable(weatherIcon);
+        icon.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        int size = Math.round(26 * density);
+        block.addView(icon, new LinearLayout.LayoutParams(size, size));
+        weatherText = new TextView(this);
+        weatherText.setTextColor(0xE6FFFFFF);
+        weatherText.setTextSize(TypedValue.COMPLEX_UNIT_SP, 24f);
+        weatherText.setIncludeFontPadding(false);
+        try {
+            weatherText.setTypeface(UiFont.get(this, R.string.font_light));
+        } catch (Exception ignored) {
+            // the system font is fine
+        }
+        LinearLayout.LayoutParams tlp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT);
+        tlp.setMarginStart(Math.round(8 * density));
+        block.addView(weatherText, tlp);
+        LinearLayout.LayoutParams blp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT);
+        blp.gravity = Gravity.BOTTOM;
+        blp.setMarginStart(Math.round(22 * density));
+        blp.bottomMargin = Math.round(6 * density);
+        // After the time and its AM/PM mark, before the (maybe hidden) divider and date.
+        row.addView(block, row.indexOfChild(findViewById(R.id.ampm)) + 1, blp);
+        weatherBlock = block;
+        weather = new Weather(this, city, reading -> {
+            if (reading == null) {
+                weatherBlock.setVisibility(View.GONE);
+                return;
+            }
+            weatherIcon.setKind(reading.icon);
+            weatherText.setText(getString(R.string.weather_celsius, reading.celsius));
+            weatherBlock.setVisibility(View.VISIBLE);
+        });
     }
 
     private void transitionAmbient(int color) {
@@ -2257,6 +2440,11 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                     rtlAppGrid, keyCode == KeyEvent.KEYCODE_DPAD_LEFT);
         }
         if (keyCode == KeyEvent.KEYCODE_DPAD_UP) {
+            if (position < COLUMNS && dockUpToButtons) {
+                // dock_up_to_buttons: always the top-right buttons, never wherever the focus finder lands.
+                firstShownTopButton().requestFocus();
+                return true;
+            }
             if (position < COLUMNS) return false;          // dock row: let focus move to the top bar
             target = position - COLUMNS;
         } else {

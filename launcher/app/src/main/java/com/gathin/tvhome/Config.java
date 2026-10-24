@@ -39,6 +39,8 @@ final class Config {
     private static final String TAG = "TvHome.Config";
     static final String FILE_NAME = "config.json";
     static final String WALLPAPER_NAME = "wallpaper.jpg";
+    /** The same picture as a PNG, used when there is no wallpaper.jpg: lossless, so dark gradients keep their steps. */
+    static final String WALLPAPER_PNG_NAME = "wallpaper.png";
     static final String SETTINGS_NAME = "launcher_settings";
     static final String ROWS_BELOW_DOCK_KEY = "rows_below_dock";
     static final String WALLPAPER_CHOICE_KEY = "wallpaper_choice";
@@ -207,13 +209,31 @@ final class Config {
     /** Shape of the glow behind the focused app (config.xml, glow_style): {@link #GLOW_RADIAL} or {@link #GLOW_HORIZON}. */
     final String glowStyle;
 
-    static final String GLOW_RADIAL = "radial", GLOW_HORIZON = "horizon";
+    static final String GLOW_RADIAL = "radial", GLOW_HORIZON = "horizon", GLOW_DOCK = "dock";
     /** Show each rotating wallpaper's name from wallpapers/captions.txt (config.xml / theme wallpaper_captions). */
     final boolean wallpaperCaptions;
     /** Answer VIEW_INPUTS with the Inputs menu (handle_view_inputs); see InputsRequestActivity. */
     final boolean handleViewInputs;
     /** Hold OK on a tile opens a menu (Move, Remove from Home, App info) instead of App info (config.xml / theme tile_menu). */
     final boolean tileMenu;
+    /** Strength of the black gradient across the bottom of the screen, 0 to 100 (config.xml bottom_shade); 0 draws none. */
+    final int bottomShade;
+    /** Extra black over the background as the page scrolls down, 0 to 90 percent at full scroll (config.xml scroll_dim). */
+    final int scrollDim;
+    /** Place whose weather shows beside the clock, e.g. "New Delhi, Delhi, India" (config.xml weather_city); empty is off. */
+    final String weatherCity;
+    /** Package to a logo image in the theme folder, shown floating instead of the dock tile (config.xml dock_logos). */
+    final Map<String, File> dockLogos;
+    /** Size of the dock logos in percent of the default (config.xml dock_logo_size, 50 to 200). */
+    final int dockLogoSize;
+    /** Package to the lines shown above the dock while it is focused, one per return to Home (config.xml dock_taglines). */
+    final Map<String, List<String>> dockTaglines;
+    /** Package to the colour of its glow instead of one sampled from its art (config.xml app_colors). */
+    final Map<String, Integer> appColors;
+    /** Home brings focus back to the app used last instead of the first tile (config.xml home_returns_to_last). */
+    final boolean homeReturnsToLast;
+    /** Up from the dock always goes to the top-right buttons (config.xml dock_up_to_buttons). */
+    final boolean dockUpToButtons;
 
     private Config(List<String> dockApps, boolean fillDock, List<String> hiddenApps, List<String> libraryApps, String liveTvPackage,
                    String liveTvAction, String liveTvInputId, Map<String, String> launchActions, Map<String, String> appLabels,
@@ -228,7 +248,18 @@ final class Config {
                    List<RaceWeekend.Race> raceCalendar, boolean cinematicHome, boolean ambientGlow, boolean appGlow, boolean fadeRows, int homeIdleClockMinutes,
                    boolean keyFilter, boolean dockGlass, String glowStyle, boolean wallpaperCaptions,
                    boolean handleViewInputs, boolean tileMenu, boolean dockEvenPadding, boolean cinematicDots, boolean cinematicWhiteFocus, boolean wifiStatusColor, int cinematicScrim, int cinematicArt,
-                   Map<String, Set<String>> wallpaperMoods) {
+                   Map<String, Set<String>> wallpaperMoods, int bottomShade, int scrollDim, String weatherCity,
+                   Map<String, File> dockLogos, int dockLogoSize, Map<String, List<String>> dockTaglines,
+                   Map<String, Integer> appColors, boolean homeReturnsToLast, boolean dockUpToButtons) {
+        this.bottomShade = bottomShade;
+        this.scrollDim = scrollDim;
+        this.weatherCity = weatherCity;
+        this.dockLogos = Collections.unmodifiableMap(dockLogos);
+        this.dockLogoSize = dockLogoSize;
+        this.dockTaglines = Collections.unmodifiableMap(dockTaglines);
+        this.appColors = Collections.unmodifiableMap(appColors);
+        this.homeReturnsToLast = homeReturnsToLast;
+        this.dockUpToButtons = dockUpToButtons;
         this.handleViewInputs = handleViewInputs;
         this.tileMenu = tileMenu;
         this.inputKeycodes = inputKeycodes;
@@ -318,7 +349,9 @@ final class Config {
 
     /** A known glow_style, or radial (the default) for anything else. */
     static String glowStyle(String value) {
-        return value != null && GLOW_HORIZON.equalsIgnoreCase(value.trim()) ? GLOW_HORIZON : GLOW_RADIAL;
+        if (value != null && GLOW_HORIZON.equalsIgnoreCase(value.trim())) return GLOW_HORIZON;
+        if (value != null && GLOW_DOCK.equalsIgnoreCase(value.trim())) return GLOW_DOCK;
+        return GLOW_RADIAL;
     }
 
     /** The folder the theme tools push into; null when external storage is unavailable. */
@@ -403,6 +436,15 @@ final class Config {
         int cinematicScrim = res.getInteger(R.integer.cinematic_scrim);
         Map<String, Set<String>> wallpaperMoods = moods(res.getString(R.string.wallpaper_moods));
         String glowStyle = res.getString(R.string.glow_style);
+        int bottomShade = res.getInteger(R.integer.bottom_shade);
+        int scrollDim = res.getInteger(R.integer.scroll_dim);
+        String weatherCity = res.getString(R.string.weather_city).trim();
+        List<String> dockLogos = new ArrayList<>(Arrays.asList(res.getStringArray(R.array.dock_logos)));
+        int dockLogoSize = res.getInteger(R.integer.dock_logo_size);
+        Map<String, List<String>> dockTaglines = packageLines(Arrays.asList(res.getStringArray(R.array.dock_taglines)));
+        List<String> appColors = new ArrayList<>(Arrays.asList(res.getStringArray(R.array.app_colors)));
+        boolean homeReturnsToLast = res.getBoolean(R.bool.home_returns_to_last);
+        boolean dockUpToButtons = res.getBoolean(R.bool.dock_up_to_buttons);
         boolean applied = false;
 
         File dir = dir(ctx);
@@ -487,6 +529,15 @@ final class Config {
             JSONObject moods = json.optJSONObject("wallpaper_moods");
             if (moods != null) wallpaperMoods = moods(moods);
             glowStyle = string(json, "glow_style", glowStyle);
+            bottomShade = integer(json, "bottom_shade", bottomShade, 0, 100);
+            scrollDim = integer(json, "scroll_dim", scrollDim, 0, 90);
+            weatherCity = string(json, "weather_city", weatherCity);
+            dockLogos = packageEntries(json, "dock_logos", dockLogos);
+            dockLogoSize = integer(json, "dock_logo_size", dockLogoSize, 50, 200);
+            dockTaglines = packageLines(json, "dock_taglines", dockTaglines);
+            appColors = packageEntries(json, "app_colors", appColors);
+            homeReturnsToLast = bool(json, "home_returns_to_last", homeReturnsToLast);
+            dockUpToButtons = bool(json, "dock_up_to_buttons", dockUpToButtons);
         }
         // A theme push or reset invalidates choices made on the TV. On first use, remember the
         // current theme without clearing choices from an older launcher version.
@@ -499,8 +550,11 @@ final class Config {
         if (chosenRows >= 0 && chosenRows <= 3) rowsBelow = chosenRows;
         animations = choices.getBoolean("animations", animations);
         advancedEffects = choices.getBoolean("advanced_effects", advancedEffects);
-        File wallpaper = dir != null ? new File(dir, WALLPAPER_NAME) : null;
-        if (wallpaper != null && !(wallpaper.isFile() && wallpaper.length() > 0)) wallpaper = null;
+        // "wallpaper": "wallpaper/home.png" names a picture anywhere in the theme folder; then wallpaper.jpg, then
+        // wallpaper.png. A name that is not there falls through to the next, so a typo never blanks Home.
+        File wallpaper = json == null ? null : themeFile(dir, string(json, "wallpaper", null));
+        if (wallpaper == null) wallpaper = themeFile(dir, WALLPAPER_NAME);
+        if (wallpaper == null) wallpaper = themeFile(dir, WALLPAPER_PNG_NAME);
         // A theme can also switch the wallpaper off while the file is still there.
         boolean wallpaperEnabled = json == null || bool(json, "wallpaper", true);
         if (!wallpaperEnabled) wallpaper = null;
@@ -540,7 +594,9 @@ final class Config {
                 Math.max(0, Math.min(100, skyIntensity)), settingsKeycodes, settingsKeyPanel, restoreKeyServices, wallpaperEnabled, wallpaper,
                 wallpapers, rotationMinutes, wallpaperDim, dockOpacity, wallpaperOrder, applied,
                 festival, inputKeycodes, appKeys, stockHomeRedirect, json == null ? Collections.emptyList() : raceCalendar(json), cinematic, ambientGlow, appGlow, fadeRows,
-                Math.max(0, idleClockMinutes), keyFilter, dockGlass, glowStyle, wallpaperCaptions, handleViewInputs, tileMenu, dockEvenPadding, cinematicDots, cinematicWhiteFocus, wifiStatusColor, cinematicScrim, cinematicArt, wallpaperMoods);
+                Math.max(0, idleClockMinutes), keyFilter, dockGlass, glowStyle, wallpaperCaptions, handleViewInputs, tileMenu, dockEvenPadding, cinematicDots, cinematicWhiteFocus, wifiStatusColor, cinematicScrim, cinematicArt, wallpaperMoods,
+                clamp(bottomShade, 0, 100), clamp(scrollDim, 0, 90), weatherCity, themeFiles(dir, packageMap(dockLogos)),
+                clamp(dockLogoSize, 50, 200), dockTaglines, colorMap(packageMap(appColors)), homeReturnsToLast, dockUpToButtons);
     }
 
     /**
@@ -731,6 +787,109 @@ final class Config {
             if (eq <= 0) continue;
             String pkg = entry.substring(0, eq).trim(), value = entry.substring(eq + 1).trim();
             if (!pkg.isEmpty() && !value.isEmpty()) out.put(pkg, value);
+        }
+        return out;
+    }
+
+    private static int clamp(int value, int min, int max) {
+        return Math.max(min, Math.min(max, value));
+    }
+
+    /**
+     * An image in the theme folder by its path there, e.g. "logos/netflix.png", or null when the path is empty, leaves
+     * the folder, is not a picture or names no file. Only one folder deep, the same rule ThemeFiles uses for pushes.
+     */
+    static File themeFile(File dir, String path) {
+        if (dir == null || path == null) return null;
+        String[] parts = path.trim().split("/", -1);
+        if (parts.length > 2 || parts.length == 2 && !ThemeFiles.folder(parts[0])) return null;
+        if (!ThemeFiles.collectionImage(parts[parts.length - 1])) return null;
+        File f = new File(dir, path.trim());
+        return f.isFile() && f.length() > 0 ? f : null;
+    }
+
+    /** Each package's image file; an entry whose file is missing or not allowed is left out on its own. */
+    private static Map<String, File> themeFiles(File dir, Map<String, String> paths) {
+        Map<String, File> out = new HashMap<>();
+        for (Map.Entry<String, String> e : paths.entrySet()) {
+            File f = themeFile(dir, e.getValue());
+            if (f != null) out.put(e.getKey(), f);
+            else Log.w(TAG, "no image " + e.getValue() + " for " + e.getKey());
+        }
+        return out;
+    }
+
+    /** Each package's colour; an entry that is not a colour is left out on its own. */
+    static Map<String, Integer> colorMap(Map<String, String> colors) {
+        Map<String, Integer> out = new HashMap<>();
+        for (Map.Entry<String, String> e : colors.entrySet()) {
+            Integer c = parseColor(e.getValue());
+            if (c != null) out.put(e.getKey(), c);
+        }
+        return out;
+    }
+
+    /** #RRGGBB (or #AARRGGBB, made opaque) without android.graphics.Color, so the JVM tests can call it; null if not one. */
+    static Integer parseColor(String value) {
+        if (value == null) return null;
+        String v = value.trim();
+        if (!v.matches("#([0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})")) return null;
+        return (int) Long.parseLong(v.substring(v.length() - 6), 16) | 0xFF000000;
+    }
+
+    /**
+     * "package=value" entries from a list, or from an object {"package": "value"} (what a theme writes by hand). Anything
+     * else in it is skipped; a value of the wrong type leaves the fallback.
+     */
+    private static List<String> packageEntries(JSONObject o, String key, List<String> fallback) {
+        Object v = o.opt(key);
+        if (v instanceof JSONArray) return stringList(o, key, fallback);
+        if (!(v instanceof JSONObject)) return fallback;
+        JSONObject map = (JSONObject) v;
+        List<String> out = new ArrayList<>();
+        for (java.util.Iterator<String> it = map.keys(); it.hasNext(); ) {
+            String pkg = it.next();
+            Object value = map.opt(pkg);
+            if (value instanceof String) out.add(pkg.trim() + "=" + ((String) value).trim());
+        }
+        return out;
+    }
+
+    /** "package=line" entries, a package repeated for each of its lines, in order; a line without both halves is skipped. */
+    static Map<String, List<String>> packageLines(List<String> entries) {
+        Map<String, List<String>> out = new HashMap<>();
+        for (String entry : entries) {
+            int eq = entry.indexOf('=');
+            if (eq <= 0) continue;
+            String pkg = entry.substring(0, eq).trim(), line = entry.substring(eq + 1).trim();
+            if (pkg.isEmpty() || line.isEmpty()) continue;
+            List<String> lines = out.get(pkg);
+            if (lines == null) out.put(pkg, lines = new ArrayList<>());
+            lines.add(line);
+        }
+        return out;
+    }
+
+    /** {"package": "line"} or {"package": ["line", ...]}, or a list of "package=line"; bad entries are skipped one by one. */
+    private static Map<String, List<String>> packageLines(JSONObject o, String key, Map<String, List<String>> fallback) {
+        Object v = o.opt(key);
+        if (v instanceof JSONArray) return packageLines(stringList(o, key, Collections.emptyList()));
+        if (!(v instanceof JSONObject)) return fallback;
+        JSONObject map = (JSONObject) v;
+        Map<String, List<String>> out = new HashMap<>();
+        for (java.util.Iterator<String> it = map.keys(); it.hasNext(); ) {
+            String raw = it.next(), pkg = raw.trim();
+            Object value = map.opt(raw);
+            List<String> lines = new ArrayList<>();
+            if (value instanceof String && !((String) value).trim().isEmpty()) lines.add(((String) value).trim());
+            if (value instanceof JSONArray) {
+                JSONArray a = (JSONArray) value;
+                for (int i = 0; i < a.length(); i++) {
+                    Object line = a.opt(i);
+                    if (line instanceof String && !((String) line).trim().isEmpty()) lines.add(((String) line).trim());
+                }
+            }
+            if (!pkg.isEmpty() && !lines.isEmpty()) out.put(pkg, lines);
         }
         return out;
     }

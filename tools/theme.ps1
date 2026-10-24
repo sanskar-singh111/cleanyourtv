@@ -50,7 +50,7 @@ function Put($name) { $t = Stage $name; "rm -f $dir/$name 2>/dev/null; { o=`$(co
 function Drop($name) { "rm -f $dir/$name 2>/dev/null; content delete --uri $uri/$name 2>/dev/null" }
 
 if ($Reset) {
-    & $py -I tv.py "mkdir -p $dir 2>/dev/null; $(Drop 'config.json'); $(Drop 'wallpaper.jpg'); printf '%s' '$revision' > $tmp-theme_revision; $(Put 'theme_revision'); $restart; echo reset"
+    & $py -I tv.py "mkdir -p $dir 2>/dev/null; $(Drop 'config.json'); $(Drop 'wallpaper.jpg'); $(Drop 'wallpaper.png'); printf '%s' '$revision' > $tmp-theme_revision; $(Put 'theme_revision'); $restart; echo reset"
     exit 0
 }
 if (-not $Theme) { throw 'usage: theme.ps1 <theme folder> | -Reset' }
@@ -63,6 +63,8 @@ try { Get-Content $config -Raw | ConvertFrom-Json | Out-Null } catch { throw "$c
 & $py -I tv.py (Put 'config.json')
 $wall = Join-Path $Theme 'wallpaper.jpg'
 if (Test-Path $wall) { & $py -I b64push.py $wall "$tmp-wallpaper.jpg"; & $py -I tv.py (Put 'wallpaper.jpg') } else { & $py -I tv.py (Drop 'wallpaper.jpg') | Out-Null }
+$png = Join-Path $Theme 'wallpaper.png'
+if (Test-Path $png) { & $py -I b64push.py $png "$tmp-wallpaper.png"; & $py -I tv.py (Put 'wallpaper.png') } else { & $py -I tv.py (Drop 'wallpaper.png') | Out-Null }
 & $py -I tv.py "mkdir -p $dir/wallpapers 2>/dev/null; rm -f $dir/wallpapers/*.jpg $dir/wallpapers/*.jpeg $dir/wallpapers/*.png $dir/wallpapers/*.webp $dir/wallpapers/*.JPG $dir/wallpapers/*.JPEG $dir/wallpapers/*.PNG $dir/wallpapers/*.WEBP 2>/dev/null; content delete --uri $uri/wallpapers 2>/dev/null" | Out-Null
 $wallpapers = Join-Path $Theme 'wallpapers'
 if (Test-Path $wallpapers -PathType Container) {
@@ -70,6 +72,17 @@ if (Test-Path $wallpapers -PathType Container) {
         if ($_.Name -notmatch '^[A-Za-z0-9_.-]+$') { throw "unsupported wallpaper filename: $($_.Name)" }
         & $py -I b64push.py $_.FullName (Stage "wallpapers/$($_.Name)")
         & $py -I tv.py (Put "wallpapers/$($_.Name)") | Out-Null
+    }
+}
+# The theme's own picture folders (logos/, wallpaper/ and the like), cleared on the TV and pushed again, as theme.sh does.
+Get-ChildItem $Theme -Directory | Where-Object { $_.Name -ne 'wallpapers' } | ForEach-Object {
+    $name = $_.Name
+    if ($name -cnotmatch '^[a-z0-9_-]+$') { Write-Warning "skipping folder ${name}: use lower-case letters, digits, - and _"; return }
+    & $py -I tv.py "mkdir -p $dir/$name 2>/dev/null; rm -f $dir/$name/*.jpg $dir/$name/*.jpeg $dir/$name/*.png $dir/$name/*.webp $dir/$name/*.JPG $dir/$name/*.JPEG $dir/$name/*.PNG $dir/$name/*.WEBP 2>/dev/null; content delete --uri $uri/$name 2>/dev/null" | Out-Null
+    Get-ChildItem $_.FullName -File | Where-Object { $_.Extension -match '^\.(jpg|jpeg|png|webp)$' } | ForEach-Object {
+        if ($_.Name -notmatch '^[A-Za-z0-9_.-]+$') { Write-Warning "skipping $name/$($_.Name): use letters, digits, ., - and _"; return }
+        & $py -I b64push.py $_.FullName (Stage "$name/$($_.Name)")
+        & $py -I tv.py (Put "$name/$($_.Name)") | Out-Null
     }
 }
 # The collection's names (wallpaper_captions); a theme without them leaves no stale names behind.

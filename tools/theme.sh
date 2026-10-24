@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Push a theme (a folder with config.json and optionally wallpaper.jpg) to the launcher on the TV and
+# Push a theme (a folder with config.json and optionally wallpaper.jpg or .png, wallpapers/ and picture folders
+# such as logos/) to the launcher on the TV and
 # restart Home so it picks it up. The launcher reads the files from its external files directory and
 # overlays config.json on its built-in config.xml; see themes/README.md for the keys.
 #
@@ -61,7 +62,7 @@ put() { echo "rm -f $DIR/$1 2>/dev/null; { o=\$(content write --uri $URI/$1 < $(
 del() { echo "rm -f $DIR/$1 2>/dev/null; content delete --uri $URI/$1 2>/dev/null"; }
 
 if [ "${1:-}" = --reset ]; then
-  tv "mkdir -p $DIR 2>/dev/null; $(del config.json); $(del wallpaper.jpg); printf '%s' '$REVISION' > $TMP-theme_revision; $(put theme_revision); $RESTART; echo reset" | tail -n 1
+  tv "mkdir -p $DIR 2>/dev/null; $(del config.json); $(del wallpaper.jpg); $(del wallpaper.png); printf '%s' '$REVISION' > $TMP-theme_revision; $(put theme_revision); $RESTART; echo reset" | tail -n 1
   exit 0
 fi
 THEME="${THEME_ARG:?usage: theme.sh <theme folder> | --reset}"
@@ -78,6 +79,13 @@ if [ -f "$THEME/wallpaper.jpg" ]; then
 else
   tv "$(del wallpaper.jpg)" >/dev/null
 fi
+# The same picture as a lossless PNG; the launcher reads it when there is no wallpaper.jpg.
+if [ -f "$THEME/wallpaper.png" ]; then
+  "$PY" -I b64push.py "$THEME/wallpaper.png" "$TMP-wallpaper.png"
+  tv "$(put wallpaper.png)"
+else
+  tv "$(del wallpaper.png)" >/dev/null
+fi
 tv "mkdir -p $DIR/wallpapers 2>/dev/null; rm -f $DIR/wallpapers/*.jpg $DIR/wallpapers/*.jpeg $DIR/wallpapers/*.png $DIR/wallpapers/*.webp $DIR/wallpapers/*.JPG $DIR/wallpapers/*.JPEG $DIR/wallpapers/*.PNG $DIR/wallpapers/*.WEBP 2>/dev/null; content delete --uri $URI/wallpapers 2>/dev/null" >/dev/null
 if [ -d "$THEME/wallpapers" ]; then
   for IMAGE in "$THEME"/wallpapers/*; do
@@ -91,6 +99,26 @@ if [ -d "$THEME/wallpapers" ]; then
     esac
   done
 fi
+# The theme's own picture folders, such as logos/ for dock_logos or wallpaper/ for a "wallpaper" path: each is
+# cleared on the TV and pushed again, so a renamed or removed picture leaves nothing stale behind. Folder names
+# are lower-case letters, digits, - and _ (the launcher refuses others); anything else in the theme is skipped.
+for FOLDER in "$THEME"/*/; do
+  FOLDER="${FOLDER%/}"
+  NAME=$(basename "$FOLDER")
+  [ "$NAME" = wallpapers ] && continue
+  [[ "$NAME" =~ ^[a-z0-9_-]+$ ]] || { echo "skipping folder $NAME: use lower-case letters, digits, - and _" >&2; continue; }
+  tv "mkdir -p $DIR/$NAME 2>/dev/null; rm -f $DIR/$NAME/*.jpg $DIR/$NAME/*.jpeg $DIR/$NAME/*.png $DIR/$NAME/*.webp $DIR/$NAME/*.JPG $DIR/$NAME/*.JPEG $DIR/$NAME/*.PNG $DIR/$NAME/*.WEBP 2>/dev/null; content delete --uri $URI/$NAME 2>/dev/null" >/dev/null
+  for IMAGE in "$FOLDER"/*; do
+    [ -f "$IMAGE" ] || continue
+    case "$IMAGE" in
+      *.jpg|*.jpeg|*.png|*.webp|*.JPG|*.JPEG|*.PNG|*.WEBP)
+        FILE=$(basename "$IMAGE")
+        [[ "$FILE" =~ ^[A-Za-z0-9_.-]+$ ]] || { echo "skipping $NAME/$FILE: use letters, digits, ., - and _" >&2; continue; }
+        "$PY" -I b64push.py "$IMAGE" "$(stage "$NAME/$FILE")"
+        tv "$(put "$NAME/$FILE")" >/dev/null ;;
+    esac
+  done
+done
 # The collection's names (wallpaper_captions); a theme without them leaves no stale names behind.
 if [ -f "$THEME/wallpapers/captions.txt" ]; then
   "$PY" -I b64push.py "$THEME/wallpapers/captions.txt" "$(stage wallpapers/captions.txt)"

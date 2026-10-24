@@ -85,10 +85,19 @@ A new key needs one there in the same pull request.
 | `plain_focus` | bool | Focus shows only as the focused tile growing 10% over 180 ms, eased out: no glass highlight, no dock band, no names under the tiles on Home, and the Inputs and Settings menus as plain white rows with no panel (`false` by default) |
 | `more_apps` | bool | Home shows only the dock row and, under it, a centred More apps button that opens every other app in a full-screen grid on the same background, named; Back returns to Home. Apps listed in `dock_apps` after the dock's slots come first there, in that order (`false` by default) |
 | `idle_fade_minutes` | 0 to 1440 | Minutes Home may sit untouched before everything on it fades away over a second, leaving only `background_color`, the sky or the wallpaper; any button brings it back without doing anything else, and volume keys still work. 0 turns it off (default) |
+| `bottom_shade` | 0 to 100 | A black gradient rising from the bottom edge, strongest under the dock, so the app row sits on dark over any wallpaper; the number is its strength at the bottom. 0 draws nothing (default) |
+| `scroll_dim` | 0 to 90 | How much darker the background gets as the page scrolls down, Home's grid or the More apps grid, in percent once it has scrolled half a screen. 0 is off (default) |
+| `weather_city` | string | The weather beside the clock, a small outline icon and the temperature in °C, from Open-Meteo (free, no key), fetched only while Home is in front and at most every 30 minutes; the place is never shown. `"New Delhi"`, or `"New Delhi, Delhi, India"` to pick the right one. Empty is off (default). Needs a build with the `INTERNET` permission, which upstream does not have |
+| `dock_logos` | object | `{"package": "logos/name.png"}`: a picture from the theme folder (white on transparent works best) floats on the background instead of that dock app's tile, sized by visual weight so thin and solid logos look equally big, never stretched; the app's name fades in under it on focus. A missing or unreadable picture leaves that app its tile. Empty by default |
+| `dock_logo_size` | 50 to 200 | Size of the `dock_logos` in percent (100 by default) |
+| `dock_taglines` | object | `{"package": "line"}` or `{"package": ["line", "line"]}`: shown above the dock, centred, while that app is focused, instead of its name; with several lines, each return to Home shows the next. Shows even with `dock_title` off. Empty by default |
+| `app_colors` | object | `{"package": "#RRGGBB"}`: the colour of that app's glow instead of one sampled from its art, which white logos do not have. A value that is not a colour is skipped. Empty by default |
+| `home_returns_to_last` | bool | Home brings focus back to what was used last: from an app, the tile it was opened from (the More apps grid stays open); on Home already, the dock app focused last. `false` goes to the first tile (default) |
+| `dock_up_to_buttons` | bool | Up from the dock always goes to the first of the top-right buttons, never wherever the focus search lands (`false` by default) |
 | `handle_view_inputs` | bool | Answer the system input switcher (`VIEW_INPUTS`, what the remote's Input button becomes) with the Inputs menu, for sets whose stock launcher was its only handler (Hisense huangshan); `false` by default so a TV with its own input picker never gets a chooser |
 | `background_color` | `#RRGGBB` | Colour behind everything; black by default |
 | `sky_intensity` | 0 to 100 | Time-of-day backdrop: a dark gradient that follows the clock, 0 hides it (default) |
-| `wallpaper` | bool | Show `wallpaper.jpg` from the theme folder (`true`), or ignore it (`false`) |
+| `wallpaper` | bool or string | Show `wallpaper.jpg`, or else `wallpaper.png`, from the theme folder (`true`), or ignore it (`false`); a path such as `"wallpaper/home.png"` picks a picture in one of the theme's folders, and one that is not there falls back to `wallpaper.jpg` or `.png` |
 | `wallpaper_rotation_minutes` | 0 to 1440 | Rotate images in the theme's `wallpapers/` folder at this interval; 0 keeps the single-image behaviour. A negative or non-numeric value is ignored, and 0 means "no rotation", not "every minute" |
 | `wallpaper_order` | `shuffle` or `sequential` | How a collection advances. `shuffle` (the default, and what launchers did before this key existed) avoids repeating the current picture; `sequential` walks the folder in filename order and wraps at the end. An unknown value falls back to `shuffle` |
 | `wallpaper_dim` | 0 to 90 | Black overlay over wallpaper images, in percent; 0 by default and no shade view at all |
@@ -110,7 +119,7 @@ A new key needs one there in the same pull request.
 | `stock_home_redirect` | string | Stock launcher package; if the firmware turns it back on (XGIMI), its home screen is sent straight back here (`HOME_KEY_SERVICE=1`) |
 | `race_calendar` | list of races | F1 race-weekend mode: from 12 hours before a weekend's first session until 4 hours after the race starts, a panel under the clock shows the next session with a countdown (or the live one) and the weekend's session times in the TV's time zone. Write it with `tools/race_calendar.py <theme folder>`, which fetches the season from the free Jolpica API; the launcher itself never goes online |
 | `home_idle_clock_minutes` | 0 to 1440 | Minutes Home may sit untouched before it shows the clock screensaver (a thin clock and date drifting over a slow glow, as the system "Clock" screensaver does). Any key returns to Home. It starts only from Home, never over Live TV or an app; 0 is off (default) |
-| `glow_style` | string | Shape of the glow behind the focused app, in its colour: `radial` (default) or `horizon`, the colour washing down from the top edge to black; the cinematic shelf keeps its own |
+| `glow_style` | string | Shape of the glow behind the focused app, in its colour: `radial` (default), `horizon`, the colour washing down from the top edge to black, or `dock`, a wide low glow behind the dock's row for floating `dock_logos`; the cinematic shelf keeps its own |
 | `cinematic_home` | bool | Cinematic top shelf: the focused dock app's artwork, softened, fills the top of the screen in its colour, with a larger name, "Last opened" (apps opened from Home), dock position dots, a focus glow in the app's colour and a translucent dock band; off by default |
 | `cinematic_dots` | bool | With `cinematic_home`, the dock position dots under the app's name (`true` by default); `false` leaves them out |
 | `cinematic_white_focus` | bool | With `cinematic_home`, the focus highlight stays white on the dock instead of taking the focused app's colour (`false` by default); `app_glow` still colours every tile |
@@ -128,6 +137,12 @@ A new key needs one there in the same pull request.
 under about 300 KB: the text, the hero name and the dock band are designed for black, and a 1 GB TV
 decodes the picture into memory on every Home start. Pictures larger than the screen are scaled down to
 it; a picture that is still over 4K (about 8.4 million pixels) after it is sampled down to the screen is not shown at all, and the plain colour stays.
+
+`wallpaper.png` works the same when there is no `wallpaper.jpg`: lossless, so a dark gradient keeps its
+steps (with `wallpaper_true_color` on). A theme can also keep its pictures in folders of its own beside
+`config.json`, such as `logos/` for `dock_logos` or `wallpaper/` with `"wallpaper": "wallpaper/home.png"`;
+`tools/theme.sh` pushes every such folder (lower-case letters, digits, `-` and `_`) and clears the old copy
+on the TV first.
 
 For a wallpaper collection, place JPEG, PNG or WebP files in the theme’s `wallpapers/` folder beside `config.json`, then set:
 

@@ -195,6 +195,39 @@
          any button brings it back (that press does nothing else; volume keys still work). 0 turns it off. A theme can
          set "idle_fade_minutes": 5. -->
     <integer name="idle_fade_minutes">0</integer>
+    <!-- A black gradient rising from the bottom edge, strongest under the dock, so the app row sits on dark over any
+         wallpaper; 0 to 100, its strength at the bottom. 0 draws nothing (default). A theme can set "bottom_shade": 70. -->
+    <integer name="bottom_shade">0</integer>
+    <!-- How much darker the background gets as the page scrolls down (Home's grid or the More apps grid), in percent at
+         half a screen of scroll, 0 to 90. 0 is off (default). A theme can set "scroll_dim": 35. -->
+    <integer name="scroll_dim">0</integer>
+    <!-- The weather beside the clock: a small outline icon and the temperature in °C from Open-Meteo (free, no key),
+         fetched only while Home is in front and at most every 30 minutes. The place name is never shown. "City" or
+         "City, Region, Country" to pick the right one; empty is off (default) and nothing touches the network. A theme
+         can set "weather_city": "New Delhi, Delhi, India". -->
+    <string name="weather_city" translatable="false"></string>
+    <!-- Dock logos: "package=path" with a path in the theme folder, e.g. "com.netflix.ninja=logos/netflix.png". The
+         picture (white on transparent works best) floats on the background instead of the app's tile, sized by its
+         visual weight so thin and solid logos look equally big, never stretched; its name fades in under it on focus.
+         A missing or unreadable picture leaves that app its tile. Empty by default; a theme sets "dock_logos" as an
+         object, {"com.netflix.ninja": "logos/netflix.png"}. -->
+    <string-array name="dock_logos" translatable="false" />
+    <!-- Size of the dock logos in percent, 50 to 200 (100 by default). A theme can set "dock_logo_size": 120. -->
+    <integer name="dock_logo_size">100</integer>
+    <!-- Lines shown above the dock for the focused app instead of its name: "package=line", a package repeated for each
+         of its lines; with several, each return to Home shows the next. Empty by default; a theme sets "dock_taglines":
+         {"com.netflix.ninja": ["Say my name.", "Bella ciao."]}. -->
+    <string-array name="dock_taglines" translatable="false" />
+    <!-- Glow colours by package, "package=#RRGGBB", instead of the colour sampled from the app's art (white logos have
+         none). Empty by default; a theme sets "app_colors": {"com.netflix.ninja": "#E50914"}. -->
+    <string-array name="app_colors" translatable="false" />
+    <!-- Home brings focus back to what was used last: from an app, the tile it was opened from (the More apps grid
+         stays open); on Home already, the dock app focused last. false goes to the first tile (default). A theme can
+         set "home_returns_to_last": true. -->
+    <bool name="home_returns_to_last">false</bool>
+    <!-- Up from the dock always goes to the first of the top-right buttons instead of wherever Android's focus search
+         lands. Off by default; a theme can set "dock_up_to_buttons": true. -->
+    <bool name="dock_up_to_buttons">false</bool>
     <!-- A name after the greeting: "Mr. Trịnh" shows GOOD MORNING, MR. TRỊNH. Empty: the greeting alone. -->
     <string name="greeting_name" translatable="false"></string>
     <!-- Optional VPN app the network pill opens (hold the pill for Wi-Fi settings), e.g. the package of the
@@ -367,7 +400,8 @@
          middle of a programme. Can also be set with "home_idle_clock_minutes": 10 in a theme's config.json. -->
     <integer name="home_idle_clock_minutes">0</integer>
     <!-- Shape of the glow behind the focused app, in its colour: radial (a soft glow, the default) or horizon (the
-         colour washes down from the top edge and fades to black, brightest along the top). The cinematic shelf
+         colour washes down from the top edge and fades to black, brightest along the top) or dock (a wide, low
+         ellipse behind the dock's row, for floating dock_logos). The cinematic shelf
          keeps its own glow. Can also be set with "glow_style": "horizon" in a theme's config.json. -->
     <string name="glow_style" translatable="false">radial</string>
 </resources>

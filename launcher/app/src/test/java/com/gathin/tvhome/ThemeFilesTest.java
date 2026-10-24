@@ -15,6 +15,14 @@ public class ThemeFilesTest {
         assertEquals("config.json", ThemeFiles.path(Collections.singletonList("config.json")));
         assertEquals("wallpaper.jpg", ThemeFiles.path(Collections.singletonList("wallpaper.jpg")));
         assertEquals("theme_revision", ThemeFiles.path(Collections.singletonList("theme_revision")));
+        assertEquals("wallpaper.png", ThemeFiles.path(Collections.singletonList("wallpaper.png")));
+    }
+
+    @Test public void aThemesOwnPictureFoldersAreAllowed() {
+        assertEquals("logos/netflix.png", ThemeFiles.path(Arrays.asList("logos", "netflix.png")));
+        assertEquals("wallpaper/home.png", ThemeFiles.path(Arrays.asList("wallpaper", "home.png")));
+        assertEquals("other/dusk.jpg", ThemeFiles.path(Arrays.asList("other", "dusk.jpg")));
+        assertTrue(ThemeFiles.isCollection(Collections.singletonList("logos")));
     }
 
     @Test public void collectionImagesAreAllowed() {
@@ -40,7 +48,10 @@ public class ThemeFilesTest {
         assertNull(ThemeFiles.path(Arrays.asList("wallpapers", "a b.jpg")));
         assertNull(ThemeFiles.path(Arrays.asList("wallpapers", "../config.jpg")));
         assertNull(ThemeFiles.path(Arrays.asList("wallpapers", ".jpg")));
-        assertNull(ThemeFiles.path(Arrays.asList("other", "dusk.jpg")));
+        assertNull(ThemeFiles.path(Arrays.asList("Other Folder", "dusk.jpg")));
+        assertNull(ThemeFiles.path(Arrays.asList(".hidden", "dusk.jpg")));
+        assertNull(ThemeFiles.path(Arrays.asList("logos", "notes.txt")));
+        assertNull(ThemeFiles.path(Arrays.asList("logos", "captions.txt")));
         assertNull(ThemeFiles.path(Arrays.asList("wallpapers", "sub", "dusk.jpg")));
     }
 
@@ -48,5 +59,6 @@ public class ThemeFilesTest {
         assertTrue(ThemeFiles.isCollection(Collections.singletonList("wallpapers")));
         assertFalse(ThemeFiles.isCollection(Arrays.asList("wallpapers", "dusk.jpg")));
         assertFalse(ThemeFiles.isCollection(Collections.singletonList("config.json")));
+        assertFalse(ThemeFiles.isCollection(Collections.singletonList("..")));
     }
 }

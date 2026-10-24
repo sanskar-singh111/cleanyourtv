@@ -14,6 +14,7 @@ import android.graphics.Color;
 import android.graphics.Outline;
 import android.graphics.PixelFormat;
 import android.graphics.Rect;
+import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.provider.Settings;
@@ -22,9 +23,11 @@ import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.Gravity;
 import android.view.ViewOutlineProvider;
 import android.view.animation.DecelerateInterpolator;
 import android.view.animation.OvershootInterpolator;
+import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -74,6 +77,8 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         final String name;
         /** Ambient glow colour; 0 until sampled from the banner, or the card's accent from the start. */
         int ambient;
+        /** The theme's logo for this app (dock_logos), shown floating while it sits in the dock; null for its tile. */
+        DockLogo logo;
 
         Entry(String label, ComponentName component, Drawable banner, Drawable icon) {
             this(APP, label, component, banner, icon, null, 0);
@@ -214,6 +219,11 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     private final boolean tileMenu;
     /** Tile names and bundled banners that replace the app's own (config.xml, app_labels and app_banners). */
     private final Map<String, String> appLabels, appBanners;
+    /** dock_logos and dock_logo_size: the theme's logos by package, and how big they are drawn. */
+    private final Map<String, java.io.File> dockLogos;
+    private final int dockLogoSize;
+    /** app_colors: glow colours by package that win over the colour sampled from the art. */
+    private final Map<String, Integer> appColors;
     private final List<Entry> items = new ArrayList<>();
 
     AppAdapter(Context ctx, TileListener listener, int dockSize, Config cfg) {
@@ -241,6 +251,9 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         this.tileMenu = cfg.tileMenu;
         this.appLabels = cfg.appLabels;
         this.appBanners = cfg.appBanners;
+        this.dockLogos = cfg.dockLogos;
+        this.dockLogoSize = cfg.dockLogoSize;
+        this.appColors = cfg.appColors;
         // Tiles keep their identity across reload(), so a focused tile stays on its app instead of
         // its view being rebound to whatever app now sits in that slot.
         setHasStableIds(true);
@@ -294,11 +307,11 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             // The icon is only drawn (and sampled for the glow) when there is no banner, so a tile with a
             // banner skips loading and decoding it.
             Drawable icon = banner == null ? ri.loadIcon(pm) : null;
-            if (card != null) {
-                fresh.add(new Entry(Entry.CARD, label, component, banner, icon, card.caption, card.accent));
-            } else {
-                fresh.add(new Entry(label, component, banner, icon));
-            }
+            Entry entry = card != null ? new Entry(Entry.CARD, label, component, banner, icon, card.caption, card.accent)
+                    : new Entry(label, component, banner, icon);
+            // A logo that does not load leaves this app its ordinary tile; the other logos are unaffected.
+            if (dockLogos.containsKey(pkg)) entry.logo = DockLogo.load(dockLogos.get(pkg));
+            fresh.add(entry);
         }
         Collections.sort(fresh, (a, b) -> {
             // The owner's own order first; tiles it does not know (new installs) follow by the rule below.
@@ -446,8 +459,11 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         h.card.setVisibility(View.VISIBLE);
         h.card.setFocusable(true);
         h.name.setText(e.name);
+        h.logo = e.logo != null && !rest && position < dockSize;
         // The dock has no labels, unless always_show_names asks for them (DockDecoration then makes room in the band).
-        h.name.setVisibility(plainFocus && !rest || dockRow && position < dockSize && restNameAlpha == 0f ? View.INVISIBLE : View.VISIBLE);
+        // A floating logo always has its name, faded in under it on focus.
+        h.name.setVisibility(!h.logo && (plainFocus && !rest || dockRow && position < dockSize && restNameAlpha == 0f)
+                ? View.INVISIBLE : View.VISIBLE);
         boolean focused = h.card.isFocused();   // a rebind after reload() can hit the focused tile
         h.name.setAlpha(focused ? 1f : restNameAlpha);
         h.card.setScaleX(focused && animations ? focusScale() : 1f);
@@ -458,8 +474,31 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         h.banner.setScaleY(focused && advancedEffects ? 1.035f : 1f);
         // A fully opaque banner covers the whole card (centerCrop), so the card's own fill under it is drawn for
         // nothing on every frame; keep it under banners with transparent parts and under icon tiles.
-        h.card.setBackground(e.banner != null && e.banner.getOpacity() == PixelFormat.OPAQUE ? null : h.cardBackground);
-        if (e.banner != null) {
+        h.card.setBackground(h.logo || e.banner != null && e.banner.getOpacity() == PixelFormat.OPAQUE ? null : h.cardBackground);
+        // A logo floats on the wallpaper: no card, no rounded clip, drawn at its visual-weight size and never stretched.
+        h.card.setClipToOutline(!h.logo);
+        FrameLayout.LayoutParams bannerLp = (FrameLayout.LayoutParams) h.banner.getLayoutParams();
+        if (h.logo) {
+            ViewGroup.LayoutParams cardLp = h.card.getLayoutParams();
+            float[] box = DockLogo.box(e.logo.coverage, e.logo.bitmap.getWidth() / (float) e.logo.bitmap.getHeight(),
+                    cardLp.width, cardLp.height, dockLogoSize);
+            bannerLp.width = Math.round(box[0]);
+            bannerLp.height = Math.round(box[1]);
+            bannerLp.gravity = Gravity.CENTER;
+            h.banner.setLayoutParams(bannerLp);
+            h.banner.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        } else if (bannerLp.width != ViewGroup.LayoutParams.MATCH_PARENT) {
+            bannerLp.width = ViewGroup.LayoutParams.MATCH_PARENT;
+            bannerLp.height = ViewGroup.LayoutParams.MATCH_PARENT;
+            h.banner.setLayoutParams(bannerLp);
+            h.banner.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        }
+        if (h.logo) {
+            h.banner.setImageDrawable(new BitmapDrawable(ctx.getResources(), e.logo.bitmap));
+            h.banner.setVisibility(View.VISIBLE);
+            h.icon.setVisibility(View.GONE);
+            h.label.setVisibility(View.GONE);
+        } else if (e.banner != null) {
             h.banner.setImageDrawable(e.banner);
             h.banner.setVisibility(View.VISIBLE);
             h.icon.setVisibility(View.GONE);
@@ -659,6 +698,8 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     int ambientColorAt(int position) {
         if (position < 0 || position >= items.size()) return 0xFF444444;
         Entry e = items.get(position);
+        Integer themed = appColors.get(e.pkg);
+        if (themed != null) return themed;
         if (e.ambient == 0) e.ambient = vividColor(e.banner != null ? e.banner : e.icon);
         return e.ambient;
     }
@@ -728,6 +769,8 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         final float restNameAlpha;
         final boolean overshoot;
         final boolean plain;
+        /** The tile shows a floating dock logo (dock_logos): its name fades in under it on focus. */
+        boolean logo;
 
         Holder(View v, TileListener listener, boolean animations, boolean advancedEffects,
                boolean reducedMotion, float restNameAlpha, boolean overshoot, boolean plain) {
@@ -781,7 +824,8 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
                 } else if (plain) {
                     view.animate().scaleX(s).scaleY(s).setDuration(180)
                             .setInterpolator(new DecelerateInterpolator()).withLayer().start();
-                    name.setAlpha(focused ? 1f : restNameAlpha);
+                    if (logo) name.animate().alpha(focused ? 1f : restNameAlpha).setDuration(180).start();
+                    else name.setAlpha(focused ? 1f : restNameAlpha);
                 } else if (reducedMotion) {
                     // A short zoom with no hardware layer: building a layer for so short an animation costs more
                     // frames than it saves. The name just appears instead of fading.

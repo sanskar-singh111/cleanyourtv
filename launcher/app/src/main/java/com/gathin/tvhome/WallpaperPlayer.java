@@ -5,6 +5,7 @@ import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
+import android.graphics.ColorSpace;
 import android.text.TextUtils;
 import android.util.DisplayMetrics;
 import android.util.Log;
@@ -272,6 +273,9 @@ final class WallpaperPlayer {
                 options.inTargetDensity = scale[1];
             }
             options.inPreferredConfig = bitmapConfig;
+            // True colour: plain sRGB, so a picture with an odd embedded profile is not converted on the way in and
+            // its dark steps stay where they were drawn. RGB_565 has no colour space to choose.
+            if (bitmapConfig == Bitmap.Config.ARGB_8888) options.inPreferredColorSpace = ColorSpace.get(ColorSpace.Named.SRGB);
             options.inMutable = dimColor != 0;
             Bitmap decoded = BitmapFactory.decodeFile(file.getPath(), options);
             if (decoded == null) return null;
