@@ -93,7 +93,7 @@ A new key needs one there in the same pull request.
 | `dock_taglines` | object | `{"package": "line"}` or `{"package": ["line", "line"]}`: shown above the dock, centred, while that app is focused, instead of its name; with several lines, each return to Home shows the next. Shows even with `dock_title` off. Empty by default |
 | `app_colors` | object | `{"package": "#RRGGBB"}`: the colour of that app's glow instead of one sampled from its art, which white logos do not have. A value that is not a colour is skipped. Empty by default |
 | `home_returns_to_last` | bool | Home brings focus back to what was used last: from an app, the tile it was opened from (the More apps grid stays open); on Home already, the dock app focused last. `false` goes to the first tile (default) |
-| `dock_up_to_buttons` | bool | Up from the dock always goes to the first of the top-right buttons, never wherever the focus search lands (`false` by default) |
+| `strict_dock_nav` | bool | Up from the dock always goes to the first of the top-right buttons, never wherever the focus search lands, and Left and Right stop at the dock's ends: Right on the last app no longer jumps to More apps (`false` by default) |
 | `handle_view_inputs` | bool | Answer the system input switcher (`VIEW_INPUTS`, what the remote's Input button becomes) with the Inputs menu, for sets whose stock launcher was its only handler (Hisense huangshan); `false` by default so a TV with its own input picker never gets a chooser |
 | `background_color` | `#RRGGBB` | Colour behind everything; black by default |
 | `sky_intensity` | 0 to 100 | Time-of-day backdrop: a dark gradient that follows the clock, 0 hides it (default) |

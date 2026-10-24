@@ -303,7 +303,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     /** glow_style dock: where the dock's middle sits, as a share of the screen height, for the glow behind it. */
     private float dockGlowY = 0.78f;
     private boolean homeReturnsToLast;
-    private boolean dockUpToButtons;
+    /** strict_dock_nav: Up from the dock goes to the top-right buttons, Left and Right stop at the dock's ends. */
+    private boolean strictDockNav;
     /** config dock_title: the dock app's name above the dock (dock_taglines may show a line there instead). */
     private boolean dockTitleShown;
 
@@ -453,7 +454,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                     ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         }
         homeReturnsToLast = cfg.homeReturnsToLast;
-        dockUpToButtons = cfg.dockUpToButtons;
+        strictDockNav = cfg.strictDockNav;
         heroName = findViewById(R.id.heroName);
         hero = findViewById(R.id.hero);
         // The hero is now a group (name, and the cinematic lines): without this every fade of the default
@@ -2036,7 +2037,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             } else if (Config.GLOW_DOCK.equals(glowStyle)) {
                 // A wide, low ellipse behind the dock's row, so the focused app's colour sits under its logo.
                 RadialGradient dock = new RadialGradient(0f, 0f, w * 0.42f,
-                        new int[]{0x8CFFFFFF, 0x38FFFFFF, 0x00FFFFFF}, new float[]{0f, 0.5f, 1f}, Shader.TileMode.CLAMP);
+                        new int[]{0x4DFFFFFF, 0x1CFFFFFF, 0x00FFFFFF}, new float[]{0f, 0.5f, 1f}, Shader.TileMode.CLAMP);
                 Matrix m = new Matrix();
                 m.setScale(1f, 0.42f);
                 m.postTranslate(w * 0.5f, h * Math.max(0.3f, Math.min(0.95f, dockGlowY)));
@@ -2430,7 +2431,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         // escapes up into the top bar. Mid-row moves fall through to the default focus search.
         if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT || keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
             boolean forward = rtlAppGrid ? keyCode == KeyEvent.KEYCODE_DPAD_LEFT : keyCode == KeyEvent.KEYCODE_DPAD_RIGHT;
-            if (forward && position == adapter.focusablePosition(count - 1) && adapter.isLibraryAt(count)) {
+            // strict_dock_nav: the dock's last app is its end; the More apps button is reached with Down.
+            if (forward && position == adapter.focusablePosition(count - 1) && adapter.isLibraryAt(count)
+                    && !(strictDockNav && position < COLUMNS)) {
                 focusLibrary();
                 return true;
             }
@@ -2440,8 +2443,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                     rtlAppGrid, keyCode == KeyEvent.KEYCODE_DPAD_LEFT);
         }
         if (keyCode == KeyEvent.KEYCODE_DPAD_UP) {
-            if (position < COLUMNS && dockUpToButtons) {
-                // dock_up_to_buttons: always the top-right buttons, never wherever the focus finder lands.
+            if (position < COLUMNS && strictDockNav) {
+                // strict_dock_nav: always the top-right buttons, never wherever the focus finder lands.
                 firstShownTopButton().requestFocus();
                 return true;
             }

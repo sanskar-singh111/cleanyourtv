@@ -232,8 +232,8 @@ final class Config {
     final Map<String, Integer> appColors;
     /** Home brings focus back to the app used last instead of the first tile (config.xml home_returns_to_last). */
     final boolean homeReturnsToLast;
-    /** Up from the dock always goes to the top-right buttons (config.xml dock_up_to_buttons). */
-    final boolean dockUpToButtons;
+    /** Up from the dock goes to the top-right buttons; Left and Right stop at its ends (config.xml strict_dock_nav). */
+    final boolean strictDockNav;
 
     private Config(List<String> dockApps, boolean fillDock, List<String> hiddenApps, List<String> libraryApps, String liveTvPackage,
                    String liveTvAction, String liveTvInputId, Map<String, String> launchActions, Map<String, String> appLabels,
@@ -250,7 +250,7 @@ final class Config {
                    boolean handleViewInputs, boolean tileMenu, boolean dockEvenPadding, boolean cinematicDots, boolean cinematicWhiteFocus, boolean wifiStatusColor, int cinematicScrim, int cinematicArt,
                    Map<String, Set<String>> wallpaperMoods, int bottomShade, int scrollDim, String weatherCity,
                    Map<String, File> dockLogos, int dockLogoSize, Map<String, List<String>> dockTaglines,
-                   Map<String, Integer> appColors, boolean homeReturnsToLast, boolean dockUpToButtons) {
+                   Map<String, Integer> appColors, boolean homeReturnsToLast, boolean strictDockNav) {
         this.bottomShade = bottomShade;
         this.scrollDim = scrollDim;
         this.weatherCity = weatherCity;
@@ -259,7 +259,7 @@ final class Config {
         this.dockTaglines = Collections.unmodifiableMap(dockTaglines);
         this.appColors = Collections.unmodifiableMap(appColors);
         this.homeReturnsToLast = homeReturnsToLast;
-        this.dockUpToButtons = dockUpToButtons;
+        this.strictDockNav = strictDockNav;
         this.handleViewInputs = handleViewInputs;
         this.tileMenu = tileMenu;
         this.inputKeycodes = inputKeycodes;
@@ -444,7 +444,7 @@ final class Config {
         Map<String, List<String>> dockTaglines = packageLines(Arrays.asList(res.getStringArray(R.array.dock_taglines)));
         List<String> appColors = new ArrayList<>(Arrays.asList(res.getStringArray(R.array.app_colors)));
         boolean homeReturnsToLast = res.getBoolean(R.bool.home_returns_to_last);
-        boolean dockUpToButtons = res.getBoolean(R.bool.dock_up_to_buttons);
+        boolean strictDockNav = res.getBoolean(R.bool.strict_dock_nav);
         boolean applied = false;
 
         File dir = dir(ctx);
@@ -537,7 +537,7 @@ final class Config {
             dockTaglines = packageLines(json, "dock_taglines", dockTaglines);
             appColors = packageEntries(json, "app_colors", appColors);
             homeReturnsToLast = bool(json, "home_returns_to_last", homeReturnsToLast);
-            dockUpToButtons = bool(json, "dock_up_to_buttons", dockUpToButtons);
+            strictDockNav = bool(json, "strict_dock_nav", strictDockNav);
         }
         // A theme push or reset invalidates choices made on the TV. On first use, remember the
         // current theme without clearing choices from an older launcher version.
@@ -596,7 +596,7 @@ final class Config {
                 festival, inputKeycodes, appKeys, stockHomeRedirect, json == null ? Collections.emptyList() : raceCalendar(json), cinematic, ambientGlow, appGlow, fadeRows,
                 Math.max(0, idleClockMinutes), keyFilter, dockGlass, glowStyle, wallpaperCaptions, handleViewInputs, tileMenu, dockEvenPadding, cinematicDots, cinematicWhiteFocus, wifiStatusColor, cinematicScrim, cinematicArt, wallpaperMoods,
                 clamp(bottomShade, 0, 100), clamp(scrollDim, 0, 90), weatherCity, themeFiles(dir, packageMap(dockLogos)),
-                clamp(dockLogoSize, 50, 200), dockTaglines, colorMap(packageMap(appColors)), homeReturnsToLast, dockUpToButtons);
+                clamp(dockLogoSize, 50, 200), dockTaglines, colorMap(packageMap(appColors)), homeReturnsToLast, strictDockNav);
     }
 
     /**

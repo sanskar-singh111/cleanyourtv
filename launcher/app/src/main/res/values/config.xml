@@ -226,8 +226,9 @@
          set "home_returns_to_last": true. -->
     <bool name="home_returns_to_last">false</bool>
     <!-- Up from the dock always goes to the first of the top-right buttons instead of wherever Android's focus search
-         lands. Off by default; a theme can set "dock_up_to_buttons": true. -->
-    <bool name="dock_up_to_buttons">false</bool>
+         lands, and Left and Right stop at the dock's ends (Right on the last app no longer jumps to More apps). Off by
+         default; a theme can set "strict_dock_nav": true. -->
+    <bool name="strict_dock_nav">false</bool>
     <!-- A name after the greeting: "Mr. Trịnh" shows GOOD MORNING, MR. TRỊNH. Empty: the greeting alone. -->
     <string name="greeting_name" translatable="false"></string>
     <!-- Optional VPN app the network pill opens (hold the pill for Wi-Fi settings), e.g. the package of the
