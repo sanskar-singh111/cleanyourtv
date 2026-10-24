@@ -302,6 +302,11 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private float scrollDimMax;
     /** glow_style dock: where the dock's middle sits, as a share of the screen height, for the glow behind it. */
     private float dockGlowY = 0.78f;
+    /** glow_style tagline: where the line sits, as shares of the screen, for the glow behind it. */
+    private float taglineGlowX = 0.2f, taglineGlowY = 0.62f;
+    /** tagline_rotate focus: the dock tile whose landing already moved its line on, so a refit or refocus does not. */
+    private View taglineCard;
+    private boolean taglineOnFocus;
     private boolean homeReturnsToLast;
     /** strict_dock_nav: Up from the dock goes to the top-right buttons, Left and Right stop at the dock's ends. */
     private boolean strictDockNav;
@@ -475,6 +480,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         // still follows the dock.
         dockTaglines = cfg.dockTaglines;
         dockTitleShown = cfg.dockTitle;
+        taglineOnFocus = cfg.taglineOnFocus;
         taglineVisit = getSharedPreferences(Config.SETTINGS_NAME, MODE_PRIVATE).getInt("tagline_visit", 0);
         if (!cfg.dockTitle && dockTaglines.isEmpty()) hero.setVisibility(View.GONE);
         taglineCentered = cfg.taglineCentered;
@@ -796,6 +802,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         // Hide the glass when focus leaves the tiles.
         getWindow().getDecorView().getViewTreeObserver().addOnGlobalFocusChangeListener((oldF, newF) -> {
             boolean onTile = newF != null && newF.getId() == R.id.card;
+            if (newF != taglineCard) taglineCard = null;   // the next landing on a dock app is a new one
             if (!onTile) hideGlass();
         });
 
@@ -1836,11 +1843,22 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
     private void showHero(int position, float dockTopInRoot) {
         // dock_taglines: this visit's line for the app; an app without one shows its name only under dock_title.
-        List<String> lines = dockTaglines.get(adapter.packageAt(position));
-        String label = lines != null ? Taglines.pick(lines, taglineVisit) : dockTitleShown ? adapter.labelAt(position) : "";
+        String pkg = adapter.packageAt(position);
+        List<String> lines = dockTaglines.get(pkg);
+        String label = lines != null ? Taglines.pick(lines, taglineOnFocus ? taglineTurn(pkg, lines) : taglineVisit)
+                : dockTitleShown ? adapter.labelAt(position) : "";
         int color = adapter.ambientColorAt(position);
         if (root.getHeight() > 0) dockGlowY = (dockTopInRoot + tileRect.height() / 2f) / root.getHeight();
         if (!dockTaglines.isEmpty() && !taglineCentered) alignTagline();
+        if (root.getWidth() > 0 && root.getHeight() > 0) {
+            // glow_style tagline: centred a little way into the line, at its middle height.
+            float lineH = hero.getHeight() > 0 ? hero.getHeight() : 40 * density;
+            float lineY = dockTopInRoot - 14 * density - 26 * density - lineH / 2f;
+            float lineX = taglineCentered ? root.getWidth() / 2f
+                    : ((FrameLayout.LayoutParams) hero.getLayoutParams()).getMarginStart() + 180 * density;
+            taglineGlowX = lineX / root.getWidth();
+            taglineGlowY = lineY / root.getHeight();
+        }
         float y = dockTopInRoot - 14 * density - 26 * density - hero.getHeight();
         boolean changed = !label.contentEquals(heroName.getText());
         if (cinematic && heroArtAlpha > 0f) showHeroArt(position);
@@ -1877,11 +1895,13 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             heroShown = true;
         } else if (changed) {
             if (advancedEffects) hero.animate().cancel();
-            hero.animate().alpha(0f).translationX(-12 * density).setDuration(120).withEndAction(() -> {
+            // A tagline swaps with a quick fade in place; a name slides as before.
+            float slide = dockTaglines.isEmpty() ? 12 * density : 0f;
+            hero.animate().alpha(0f).translationX(-slide).setDuration(dockTaglines.isEmpty() ? 120 : 100).withEndAction(() -> {
                 fillHero(position, label);
                 hero.setY(y);
-                hero.setTranslationX(12 * density);
-                hero.animate().alpha(1f).translationX(0f).setDuration(200).start();
+                hero.setTranslationX(slide);
+                hero.animate().alpha(1f).translationX(0f).setDuration(dockTaglines.isEmpty() ? 200 : 160).start();
             }).start();
             if (ambientGlow && advancedEffects) {
                 transitionAmbient(color);
@@ -2053,6 +2073,16 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                         new int[]{0xA6FFFFFF, 0x47FFFFFF, 0x00FFFFFF},
                         new float[]{0f, 0.5f, 1f},
                         Shader.TileMode.CLAMP));
+            } else if (Config.GLOW_TAGLINE.equals(glowStyle)) {
+                // A soft, wide light behind the dock's tagline, so the line sits in the focused app's colour.
+                RadialGradient line = new RadialGradient(0f, 0f, w * 0.3f,
+                        new int[]{0x52FFFFFF, 0x1FFFFFFF, 0x00FFFFFF}, new float[]{0f, 0.5f, 1f}, Shader.TileMode.CLAMP);
+                Matrix m = new Matrix();
+                m.setScale(1f, 0.45f);
+                m.postTranslate(w * Math.max(0.05f, Math.min(0.95f, taglineGlowX)),
+                        h * Math.max(0.1f, Math.min(0.95f, taglineGlowY)));
+                line.setLocalMatrix(m);
+                paint.setShader(line);
             } else if (Config.GLOW_DOCK.equals(glowStyle)) {
                 // A wide, low ellipse behind the dock's row, so the focused app's colour sits under its logo.
                 RadialGradient dock = new RadialGradient(0f, 0f, w * 0.42f,
@@ -2089,6 +2119,22 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         }
         // The default tint mode, SRC_IN, keeps the mask's alpha and takes the colour from the tint.
         glow.setTint(0xFF000000 | color);
+    }
+
+    /**
+     * tagline_rotate focus: this app's line for a new landing on it moves to the next one (kept across restarts); a
+     * refit or a refocus of the same tile shows the same line again.
+     */
+    private int taglineTurn(String pkg, List<String> lines) {
+        SharedPreferences turns = getSharedPreferences("tagline_turns", MODE_PRIVATE);
+        View focused = getCurrentFocus();
+        int turn = turns.getInt(pkg, -1);
+        if (focused != null && focused != taglineCard && focused.getId() == R.id.card) {
+            taglineCard = focused;
+            turn = (turn + 1) % Math.max(1, lines.size());
+            turns.edit().putInt(pkg, turn).apply();
+        }
+        return Math.max(0, turn);
     }
 
     /**

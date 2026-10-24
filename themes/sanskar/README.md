@@ -54,7 +54,8 @@ In `"dock_taglines"`, edit the text next to the app, keeping the quotes:
 "com.netflix.ninja": ["Say my name.", "Friends don't lie.", "Bella ciao."]
 ```
 
-An app with several lines shows the next one each time you come back to Home. Push.
+An app with several lines shows its next one each time focus lands on it (`"tagline_rotate": "focus"`; `"visit"`
+moves on only when you come back to Home). Push.
 
 ## Change the dock order
 
@@ -70,6 +71,7 @@ place name never shows on screen, and `""` turns the weather off.
 ## Other things you can change here
 
 - `"app_colors"`: the glow colour behind each app, as `#RRGGBB`.
+- `"glow_style"`: where that glow sits: `"tagline"` behind the line (now), `"dock"` behind the logos.
 - `"bottom_shade"`: how dark the bottom of the screen is behind the dock, 0 to 100.
 - `"tagline_align"`: `"left"` starts the line at the first logo; `"center"` centres it over the dock.
 - `"dock_bottom_room"`: how low the dock sits, as the room under it (20 now; bigger raises it).

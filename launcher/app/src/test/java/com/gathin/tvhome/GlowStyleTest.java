@@ -17,6 +17,7 @@ public class GlowStyleTest {
     public void dockByNameAnyCase() {
         assertEquals(Config.GLOW_DOCK, Config.glowStyle("dock"));
         assertEquals(Config.GLOW_DOCK, Config.glowStyle(" Dock "));
+        assertEquals(Config.GLOW_TAGLINE, Config.glowStyle("tagline"));
     }
 
     @Test

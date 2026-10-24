@@ -209,7 +209,7 @@ final class Config {
     /** Shape of the glow behind the focused app (config.xml, glow_style): {@link #GLOW_RADIAL} or {@link #GLOW_HORIZON}. */
     final String glowStyle;
 
-    static final String GLOW_RADIAL = "radial", GLOW_HORIZON = "horizon", GLOW_DOCK = "dock";
+    static final String GLOW_RADIAL = "radial", GLOW_HORIZON = "horizon", GLOW_DOCK = "dock", GLOW_TAGLINE = "tagline";
     /** Show each rotating wallpaper's name from wallpapers/captions.txt (config.xml / theme wallpaper_captions). */
     final boolean wallpaperCaptions;
     /** Answer VIEW_INPUTS with the Inputs menu (handle_view_inputs); see InputsRequestActivity. */
@@ -240,6 +240,8 @@ final class Config {
     final int dockBottomRoom;
     /** Names under the tiles in the More apps grid (config.xml more_apps_names); false shows the art alone. */
     final boolean moreAppsNames;
+    /** dock_taglines move on to an app's next line each time focus lands on it, not once per return (tagline_rotate focus). */
+    final boolean taglineOnFocus;
 
     private Config(List<String> dockApps, boolean fillDock, List<String> hiddenApps, List<String> libraryApps, String liveTvPackage,
                    String liveTvAction, String liveTvInputId, Map<String, String> launchActions, Map<String, String> appLabels,
@@ -257,7 +259,7 @@ final class Config {
                    Map<String, Set<String>> wallpaperMoods, int bottomShade, int scrollDim, String weatherCity,
                    Map<String, File> dockLogos, int dockLogoSize, Map<String, List<String>> dockTaglines,
                    Map<String, Integer> appColors, boolean homeReturnsToLast, boolean strictDockNav,
-                   boolean taglineCentered, int dockBottomRoom, boolean moreAppsNames) {
+                   boolean taglineCentered, int dockBottomRoom, boolean moreAppsNames, boolean taglineOnFocus) {
         this.bottomShade = bottomShade;
         this.scrollDim = scrollDim;
         this.weatherCity = weatherCity;
@@ -270,6 +272,7 @@ final class Config {
         this.taglineCentered = taglineCentered;
         this.dockBottomRoom = dockBottomRoom;
         this.moreAppsNames = moreAppsNames;
+        this.taglineOnFocus = taglineOnFocus;
         this.handleViewInputs = handleViewInputs;
         this.tileMenu = tileMenu;
         this.inputKeycodes = inputKeycodes;
@@ -361,6 +364,7 @@ final class Config {
     static String glowStyle(String value) {
         if (value != null && GLOW_HORIZON.equalsIgnoreCase(value.trim())) return GLOW_HORIZON;
         if (value != null && GLOW_DOCK.equalsIgnoreCase(value.trim())) return GLOW_DOCK;
+        if (value != null && GLOW_TAGLINE.equalsIgnoreCase(value.trim())) return GLOW_TAGLINE;
         return GLOW_RADIAL;
     }
 
@@ -458,6 +462,7 @@ final class Config {
         String taglineAlign = res.getString(R.string.tagline_align).trim();
         int dockBottomRoom = res.getInteger(R.integer.dock_bottom_room);
         boolean moreAppsNames = res.getBoolean(R.bool.more_apps_names);
+        String taglineRotate = res.getString(R.string.tagline_rotate).trim();
         boolean applied = false;
 
         File dir = dir(ctx);
@@ -554,6 +559,7 @@ final class Config {
             taglineAlign = string(json, "tagline_align", taglineAlign);
             dockBottomRoom = integer(json, "dock_bottom_room", dockBottomRoom, 0, 400);
             moreAppsNames = bool(json, "more_apps_names", moreAppsNames);
+            taglineRotate = string(json, "tagline_rotate", taglineRotate);
         }
         // A theme push or reset invalidates choices made on the TV. On first use, remember the
         // current theme without clearing choices from an older launcher version.
@@ -613,7 +619,8 @@ final class Config {
                 Math.max(0, idleClockMinutes), keyFilter, dockGlass, glowStyle, wallpaperCaptions, handleViewInputs, tileMenu, dockEvenPadding, cinematicDots, cinematicWhiteFocus, wifiStatusColor, cinematicScrim, cinematicArt, wallpaperMoods,
                 clamp(bottomShade, 0, 100), clamp(scrollDim, 0, 90), weatherCity, themeFiles(dir, packageMap(dockLogos)),
                 clamp(dockLogoSize, 50, 200), dockTaglines, colorMap(packageMap(appColors)), homeReturnsToLast, strictDockNav,
-                "center".equalsIgnoreCase(taglineAlign), dockBottomRoom < 0 ? -1 : Math.min(400, dockBottomRoom), moreAppsNames);
+                "center".equalsIgnoreCase(taglineAlign), dockBottomRoom < 0 ? -1 : Math.min(400, dockBottomRoom), moreAppsNames,
+                "focus".equalsIgnoreCase(taglineRotate));
     }
 
     /**

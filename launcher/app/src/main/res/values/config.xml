@@ -239,6 +239,9 @@
     <!-- Names under the tiles in the More apps grid (more_apps). true by default; false shows the icons and banners
          alone. A theme can set "more_apps_names": false. -->
     <bool name="more_apps_names">true</bool>
+    <!-- When dock_taglines moves on to an app's next line: visit (each return to Home, the default) or focus (each time
+         focus lands on the app, with a quick fade). A theme can set "tagline_rotate": "focus". -->
+    <string name="tagline_rotate" translatable="false">visit</string>
     <!-- A name after the greeting: "Mr. Trịnh" shows GOOD MORNING, MR. TRỊNH. Empty: the greeting alone. -->
     <string name="greeting_name" translatable="false"></string>
     <!-- Optional VPN app the network pill opens (hold the pill for Wi-Fi settings), e.g. the package of the
@@ -412,7 +415,7 @@
     <integer name="home_idle_clock_minutes">0</integer>
     <!-- Shape of the glow behind the focused app, in its colour: radial (a soft glow, the default) or horizon (the
          colour washes down from the top edge and fades to black, brightest along the top) or dock (a wide, low
-         ellipse behind the dock's row, for floating dock_logos). The cinematic shelf
+         ellipse behind the dock's row, for floating dock_logos) or tagline (a soft light behind the dock_taglines line). The cinematic shelf
          keeps its own glow. Can also be set with "glow_style": "horizon" in a theme's config.json. -->
     <string name="glow_style" translatable="false">radial</string>
 </resources>

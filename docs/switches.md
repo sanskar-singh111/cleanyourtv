@@ -45,3 +45,4 @@ the rules. Keys from before this rule are on its wanted list; a screenshot for o
 | `home_returns_to_last` | <img src="switches/home_returns_to_last.jpg" width="320" alt="home_returns_to_last on a TV: Home from Netflix lands on Netflix"> |
 | `strict_dock_nav` | <img src="switches/strict_dock_nav.jpg" width="320" alt="strict_dock_nav on a TV: Right on the last app keeps focus there"> |
 | `more_apps_names` | <img src="switches/more_apps_names.jpg" width="320" alt="more_apps_names on a TV: More apps with the art alone"> |
+| `tagline_rotate` | <img src="switches/tagline_rotate.jpg" width="320" alt="tagline_rotate on a TV: YouTube's second line after focus came back to it, with the glow behind the line"> |
