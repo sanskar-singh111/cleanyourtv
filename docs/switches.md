@@ -32,3 +32,4 @@ the rules. Keys from before this rule are on its wanted list; a screenshot for o
 | `bare_buttons` | <img src="../themes/sanskar/screenshot.jpg" width="320" alt="bare_buttons on a TV"> |
 | `plain_focus` | <img src="switches/plain_focus.jpg" width="320" alt="plain_focus on a TV"> |
 | `more_apps` | <img src="switches/more_apps.jpg" width="320" alt="more_apps on a TV"> |
+| `idle_fade_minutes` | <img src="switches/idle_fade_minutes.jpg" width="320" alt="idle_fade_minutes on a TV: Home faded to the black background"> |

@@ -118,6 +118,15 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     /** Idle time on Home before ClockActivity; 0 is off (config.xml, home_idle_clock_minutes). */
     private long idleClockMs;
     private final Runnable showIdleClock = () -> startActivity(new Intent(this, ClockActivity.class));
+    /** Idle time on Home before it fades to the background; 0 is off (config.xml, idle_fade_minutes). */
+    private long idleFadeMs;
+    /** Home has faded: the next key only brings it back. The key whose press woke it, so its release is eaten too. */
+    private boolean faded;
+    private int wakeKey = KeyEvent.KEYCODE_UNKNOWN;
+    private final Runnable fadeHome = () -> {
+        faded = true;
+        for (View v : fadingViews()) v.animate().alpha(0f).setDuration(1000).start();
+    };
     private String liveTvAction;
     private String liveTvInputId;
     /** The app library is on (config.xml, app_library): only then can the tile menu take an app off Home. */
@@ -374,6 +383,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         festive = festival.active(LocalDate.now());
         liveTvPkg = cfg.liveTvPackage;
         idleClockMs = cfg.homeIdleClockMinutes * MINUTE_MS;
+        idleFadeMs = cfg.idleFadeMinutes * MINUTE_MS;
         bootToLiveTv = cfg.bootToLiveTv;
         liveTvAction = cfg.liveTvAction;
         liveTvInputId = cfg.liveTvInputId;
@@ -812,6 +822,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (openLauncherSettingsIfAsked(intent)) return;
         if (openInputsIfAsked(intent)) return;
         if (intent == null || !intent.hasCategory(Intent.CATEGORY_HOME)) return;
+        if (faded) unfade(250);
+        restartIdleClock();
         closeMoreApps(false);
         grid.scrollToPosition(0);
         lastFocused = 0;
@@ -1049,12 +1061,26 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private void restartIdleClock() {
         root.removeCallbacks(showIdleClock);
         if (idleClockMs > 0) root.postDelayed(showIdleClock, idleClockMs);
+        root.removeCallbacks(fadeHome);
+        if (idleFadeMs > 0) root.postDelayed(fadeHome, idleFadeMs);
+    }
+
+    /** idle_fade_minutes: what fades away, everything but the background, sky and wallpaper under it. */
+    private View[] fadingViews() {
+        return moreGrid != null ? new View[]{homeContent(), moreGrid} : new View[]{homeContent()};
+    }
+
+    private void unfade(int ms) {
+        faded = false;
+        for (View v : fadingViews()) v.animate().alpha(1f).setDuration(ms).start();
     }
 
     @Override
     protected void onPause() {
         super.onPause();
         root.removeCallbacks(showIdleClock);
+        root.removeCallbacks(fadeHome);
+        if (faded) unfade(0);
         endReorder();   // Home or another app while reordering keeps the order so far
         wallpaperPlayer.stop();
         stopAmbientAnimation();
@@ -1160,6 +1186,19 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
      */
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
+        int code = event.getKeyCode();
+        boolean volume = code == KeyEvent.KEYCODE_VOLUME_UP || code == KeyEvent.KEYCODE_VOLUME_DOWN
+                || code == KeyEvent.KEYCODE_VOLUME_MUTE;
+        if (faded && event.getAction() == KeyEvent.ACTION_DOWN) {
+            // idle_fade_minutes: any key brings Home back and does nothing else, except volume, which still works.
+            unfade(250);
+            restartIdleClock();   // the key is eaten before Activity.dispatchKeyEvent, so onUserInteraction never runs
+            if (!volume) wakeKey = code;
+        }
+        if (code == wakeKey && !volume) {
+            if (event.getAction() == KeyEvent.ACTION_UP) wakeKey = KeyEvent.KEYCODE_UNKNOWN;
+            return true;
+        }
         if (handleSettingsKey(event)) return true;
         if (tileMenuEnabled && !reordering && openPopup == null && cardPrompt == null
                 && event.getKeyCode() == KeyEvent.KEYCODE_MENU) {
@@ -1175,7 +1214,6 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (!reordering) return super.dispatchKeyEvent(event);
         if (dockEditing) return dispatchDockEdit(event);
         boolean down = event.getAction() == KeyEvent.ACTION_DOWN;
-        int code = event.getKeyCode();
         boolean ok = code == KeyEvent.KEYCODE_DPAD_CENTER || code == KeyEvent.KEYCODE_ENTER
                 || code == KeyEvent.KEYCODE_NUMPAD_ENTER;
         boolean back = code == KeyEvent.KEYCODE_BACK || code == KeyEvent.KEYCODE_ESCAPE;

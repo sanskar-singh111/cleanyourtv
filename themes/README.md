@@ -84,6 +84,7 @@ A new key needs one there in the same pull request.
 | `bare_buttons` | bool | Wi-Fi, Inputs and Settings as bare white icons, in that order: no labels, no network name, no pill behind them; a focused icon grows slightly (`false` by default) |
 | `plain_focus` | bool | Focus shows only as the focused tile growing 10% over 180 ms, eased out: no glass highlight, no dock band, no names under the tiles on Home, and the Inputs and Settings menus as plain white rows with no panel (`false` by default) |
 | `more_apps` | bool | Home shows only the dock row and, under it, a centred More apps button that opens every other app in a full-screen grid on the same background, named; Back returns to Home. Apps listed in `dock_apps` after the dock's slots come first there, in that order (`false` by default) |
+| `idle_fade_minutes` | 0 to 1440 | Minutes Home may sit untouched before everything on it fades away over a second, leaving only `background_color`, the sky or the wallpaper; any button brings it back without doing anything else, and volume keys still work. 0 turns it off (default) |
 | `handle_view_inputs` | bool | Answer the system input switcher (`VIEW_INPUTS`, what the remote's Input button becomes) with the Inputs menu, for sets whose stock launcher was its only handler (Hisense huangshan); `false` by default so a TV with its own input picker never gets a chooser |
 | `background_color` | `#RRGGBB` | Colour behind everything; black by default |
 | `sky_intensity` | 0 to 100 | Time-of-day backdrop: a dark gradient that follows the clock, 0 hides it (default) |

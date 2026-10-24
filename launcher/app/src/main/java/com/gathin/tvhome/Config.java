@@ -132,6 +132,8 @@ final class Config {
     final boolean plainFocus;
     /** Home is the dock and a More apps button that opens the other apps (config.xml, more_apps). */
     final boolean moreApps;
+    /** Minutes before Home fades to its background (config.xml, idle_fade_minutes); 0 is off. */
+    final int idleFadeMinutes;
     /** App library pill after the last Home row (config.xml app_library). */
     final boolean appLibrary;
     /** OK directly toggles Home membership in the library (app_library_selection). */
@@ -219,7 +221,7 @@ final class Config {
                    String sourcePanelExtra, boolean coocaaSources, String inputAction,
                    String inputUriScheme, int columns, int rowsBelowDock, boolean animations, boolean advancedEffects,
                    boolean shamsiDate, String greetingName, boolean moduleCards, boolean reducedMotion, boolean bootToLiveTv, boolean dockTitle, boolean dockRow, boolean topMenu, boolean launcherSettingsButton, boolean reorderButton, boolean showNetworkPill, boolean showInputsPill, boolean iconOnlyButtons, boolean iconOnlyInputs, boolean libraryButton, int wifiLabelWidth, boolean alwaysShowNames, boolean wallpaperTrueColor, boolean focusOvershoot, String vpnApp,
-                   boolean showHomeSettingsShortcut, boolean showStats, boolean clockOnly, boolean bareButtons, boolean plainFocus, boolean moreApps, boolean appLibrary, boolean appLibrarySelection, int backgroundColor, int skyIntensity,
+                   boolean showHomeSettingsShortcut, boolean showStats, boolean clockOnly, boolean bareButtons, boolean plainFocus, boolean moreApps, int idleFadeMinutes, boolean appLibrary, boolean appLibrarySelection, int backgroundColor, int skyIntensity,
                    int[] settingsKeycodes, boolean settingsKeyPanel, boolean restoreKeyServices, boolean wallpaperEnabled, File wallpaper, List<File> wallpapers,
                    int wallpaperRotationMinutes, int wallpaperDim, int dockOpacity, String wallpaperOrder, boolean overlayApplied,
                    Festival festival, int[] inputKeycodes, List<String> appKeys, String stockHomeRedirect,
@@ -279,6 +281,7 @@ final class Config {
         this.bareButtons = bareButtons;
         this.plainFocus = plainFocus;
         this.moreApps = moreApps;
+        this.idleFadeMinutes = idleFadeMinutes;
         this.appLibrary = appLibrary;
         this.appLibrarySelection = appLibrarySelection;
         this.backgroundColor = backgroundColor;
@@ -373,6 +376,7 @@ final class Config {
         boolean bareButtons = res.getBoolean(R.bool.bare_buttons);
         boolean plainFocus = res.getBoolean(R.bool.plain_focus);
         boolean moreApps = res.getBoolean(R.bool.more_apps);
+        int idleFadeMinutes = res.getInteger(R.integer.idle_fade_minutes);
         boolean library = res.getBoolean(R.bool.app_library);
         boolean librarySelection = res.getBoolean(R.bool.app_library_selection);
         int background = 0xFF000000;
@@ -455,6 +459,7 @@ final class Config {
             bareButtons = bool(json, "bare_buttons", bareButtons);
             plainFocus = bool(json, "plain_focus", plainFocus);
             moreApps = bool(json, "more_apps", moreApps);
+            idleFadeMinutes = integer(json, "idle_fade_minutes", idleFadeMinutes, 0, 1440);
             library = bool(json, "app_library", library);
             librarySelection = bool(json, "app_library_selection", librarySelection);
             background = color(json, "background_color", background);
@@ -531,7 +536,7 @@ final class Config {
                 packageMap(appBanners), panelService,
                 panelAction, panelExtra, coocaaSources, inputAction, inputUriScheme,
                 Math.max(1, columns), Math.max(0, rowsBelow), animations, advancedEffects,
-                shamsi, greetingName, moduleCards, reducedMotion, bootToLiveTv, dockTitle, dockRow, topMenu, launcherSettingsButton, reorderButton, showNetworkPill, showInputsPill, iconOnlyButtons, iconOnlyInputs, libraryButton, wifiLabelWidth, alwaysShowNames, wallpaperTrueColor, focusOvershoot, vpn, homeSettings, showStats, clockOnly, bareButtons, plainFocus, moreApps, library, librarySelection, background,
+                shamsi, greetingName, moduleCards, reducedMotion, bootToLiveTv, dockTitle, dockRow, topMenu, launcherSettingsButton, reorderButton, showNetworkPill, showInputsPill, iconOnlyButtons, iconOnlyInputs, libraryButton, wifiLabelWidth, alwaysShowNames, wallpaperTrueColor, focusOvershoot, vpn, homeSettings, showStats, clockOnly, bareButtons, plainFocus, moreApps, Math.max(0, idleFadeMinutes), library, librarySelection, background,
                 Math.max(0, Math.min(100, skyIntensity)), settingsKeycodes, settingsKeyPanel, restoreKeyServices, wallpaperEnabled, wallpaper,
                 wallpapers, rotationMinutes, wallpaperDim, dockOpacity, wallpaperOrder, applied,
                 festival, inputKeycodes, appKeys, stockHomeRedirect, json == null ? Collections.emptyList() : raceCalendar(json), cinematic, ambientGlow, appGlow, fadeRows,
