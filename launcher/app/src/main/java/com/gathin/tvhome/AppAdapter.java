@@ -177,9 +177,9 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     private final TileListener listener;
     private final int dockSize;
     /** config dock_row: false makes the dock apps the first tiles of one plain grid (names shown, no empty slots). */
-    private final boolean dockRow;
+    private boolean dockRow;
     /** config always_show_names: the alpha of an unfocused tile's name (0 hides it). */
-    private final float restNameAlpha;
+    private float restNameAlpha;
     /** cinematic_home: only then does a launch record the last-opened app the shelf uses. */
     private final boolean cinematic;
     /** Dock order (config.xml dock_apps, or a theme's config.json). */
@@ -204,6 +204,10 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     private final boolean focusOvershoot;
     /** plain_focus: no names under the tiles, and focus is a short eased grow with no overshoot. */
     private final boolean plainFocus;
+    /** more_apps: Home shows the dock and a More apps button; the other apps open in a second adapter (rest). */
+    private final boolean moreApps;
+    /** This adapter is the More apps grid: every app after the dock, named, with no button of its own. */
+    private boolean rest;
     /** Package to the action its tile sends instead of the start screen (config.xml, launch_actions). */
     private final Map<String, String> launchActions;
     /** Hold OK opens the activity's tile menu (config.xml, tile_menu); false opens App info, as before. */
@@ -223,7 +227,8 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         this.animations = cfg.animations;
         this.advancedEffects = cfg.animations && cfg.advancedEffects;
         this.showHomeSettings = cfg.showHomeSettingsShortcut;
-        this.showLibrary = cfg.appLibrary;
+        this.showLibrary = cfg.appLibrary || cfg.moreApps;
+        this.moreApps = cfg.moreApps;
         this.reducedMotion = cfg.reducedMotion;
         this.focusOvershoot = cfg.focusOvershoot;
         this.plainFocus = cfg.plainFocus;
@@ -375,7 +380,21 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             View row = LayoutInflater.from(ctx).inflate(R.layout.row_app_library, parent, false);
             View button = row.findViewById(R.id.btnLibrary);
             button.setOnClickListener(v -> listener.onLibraryRequested());
-            button.setOnFocusChangeListener((v, focused) -> { if (focused) listener.onLibraryFocused(); });
+            if (moreApps) {
+                // A bare, centred "More apps" that grows on focus like everything else on a plain Home.
+                TextView more = (TextView) button;
+                more.setText(R.string.more_apps);
+                more.setCompoundDrawablesRelative(null, null, null, null);
+                more.setBackground(null);
+                more.setTextColor(Color.WHITE);
+            }
+            button.setOnFocusChangeListener((v, focused) -> {
+                if (moreApps) {
+                    float s = focused ? FOCUS_SCALE : 1f;
+                    v.animate().scaleX(s).scaleY(s).setDuration(180).setInterpolator(new DecelerateInterpolator()).start();
+                }
+                if (focused) listener.onLibraryFocused();
+            });
             button.setOnKeyListener((v, key, event) -> {
                 if (event.getAction() != KeyEvent.ACTION_DOWN) return false;
                 if (key == KeyEvent.KEYCODE_DPAD_UP) listener.onLibraryUp();
@@ -428,7 +447,7 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         h.card.setFocusable(true);
         h.name.setText(e.name);
         // The dock has no labels, unless always_show_names asks for them (DockDecoration then makes room in the band).
-        h.name.setVisibility(plainFocus || dockRow && position < dockSize && restNameAlpha == 0f ? View.INVISIBLE : View.VISIBLE);
+        h.name.setVisibility(plainFocus && !rest || dockRow && position < dockSize && restNameAlpha == 0f ? View.INVISIBLE : View.VISIBLE);
         boolean focused = h.card.isFocused();   // a rebind after reload() can hit the focused tile
         h.name.setAlpha(focused ? 1f : restNameAlpha);
         h.card.setScaleX(focused && animations ? focusScale() : 1f);
@@ -503,12 +522,30 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
     @Override
     public int getItemCount() {
-        return items.size() + (showLibrary ? 1 : 0);
+        return shown() + (showLibrary && !rest ? 1 : 0);
     }
 
-    int appCount() { return items.size(); }
+    /** Tiles on screen: with more_apps, Home stops after the dock and the rest wait for the More apps grid. */
+    private int shown() {
+        return moreApps && !rest ? Math.min(items.size(), dockSize) : items.size();
+    }
 
-    boolean isLibraryAt(int position) { return showLibrary && position == items.size(); }
+    int appCount() { return shown(); }
+
+    boolean isLibraryAt(int position) { return showLibrary && !rest && position == shown(); }
+
+    /** Fills this adapter, as the More apps grid, with the apps after Home's dock, in Home's order and named. */
+    void showRest(AppAdapter home) {
+        rest = true;
+        dockRow = false;
+        restNameAlpha = 0.6f;
+        leanbackPackages = home.leanbackPackages;
+        items.clear();
+        for (int i = home.dockSize; i < home.items.size(); i++) {
+            if (home.items.get(i).kind != Entry.EMPTY) items.add(home.items.get(i));
+        }
+        notifyDataSetChanged();
+    }
 
     @Override public int getItemViewType(int position) { return isLibraryAt(position) ? 1 : 0; }
 
@@ -744,6 +781,7 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
                 } else if (plain) {
                     view.animate().scaleX(s).scaleY(s).setDuration(180)
                             .setInterpolator(new DecelerateInterpolator()).withLayer().start();
+                    name.setAlpha(focused ? 1f : restNameAlpha);
                 } else if (reducedMotion) {
                     // A short zoom with no hardware layer: building a layer for so short an animation costs more
                     // frames than it saves. The name just appears instead of fading.

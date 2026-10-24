@@ -31,3 +31,4 @@ the rules. Keys from before this rule are on its wanted list; a screenshot for o
 | `clock_only` | <img src="../themes/sanskar/screenshot.jpg" width="320" alt="clock_only on a TV"> |
 | `bare_buttons` | <img src="../themes/sanskar/screenshot.jpg" width="320" alt="bare_buttons on a TV"> |
 | `plain_focus` | <img src="switches/plain_focus.jpg" width="320" alt="plain_focus on a TV"> |
+| `more_apps` | <img src="switches/more_apps.jpg" width="320" alt="more_apps on a TV"> |

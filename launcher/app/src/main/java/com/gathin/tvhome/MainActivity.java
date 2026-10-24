@@ -536,6 +536,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         Order savedOrder = Order.load(Order.file(this));
         adapter.setSavedOrder(Order.ranks(savedOrder, dockApps), Order.docked(savedOrder, dockApps));
         grid.setAdapter(adapter);
+        if (cfg.moreApps) setUpMoreApps(cfg);
 
         // tvOS layout: push the dock row towards the bottom of the screen, leaving room for
         // rows_below_dock grid rows under it; the rest of the grid stays below until you press Down.
@@ -555,6 +556,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             // Where the rows cannot fit even at the smallest tile (3 rows with the title on), the title keeps its
             // room above the dock and the last rows run off the bottom instead of the title drawing over the clock.
             if (MainActivity.this.dockRow && cfg.dockTitle && rowsBelowDock > 0) want = Math.max(want, (int) (AppAdapter.TITLE_ROOM_DP * density));
+            // more_apps: the dock rises by the button's row (row_app_library, 84dp) so the button fits under it.
+            if (cfg.moreApps) want -= (int) (84 * density);
             // No dock to push down: the grid starts at the top, with room for the first row's zoom and glass.
             if (!MainActivity.this.dockRow) want = (int) (AppAdapter.TOP_ROOM_DP * density);
             if (grid.getPaddingTop() != want) {
@@ -809,6 +812,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (openLauncherSettingsIfAsked(intent)) return;
         if (openInputsIfAsked(intent)) return;
         if (intent == null || !intent.hasCategory(Intent.CATEGORY_HOME)) return;
+        closeMoreApps(false);
         grid.scrollToPosition(0);
         lastFocused = 0;
         lastFocusedKey = adapter.getItemCount() > 0 ? adapter.keyAt(0) : null;
@@ -1026,7 +1030,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         final int returnSlot = lastFocused;
         grid.post(() -> {
             int pos = adapter.positionOf(returnKey);
-            if (returnToLibrary || libraryFocusPending) focusLibrary();
+            if (moreAppsOpen()) focusMoreTile();
+            else if (returnToLibrary || libraryFocusPending) focusLibrary();
             else focusTile(pos >= 0 ? pos : returnSlot);
             tilesReady = true;
             startPendingSettingsReorder();
@@ -1475,13 +1480,93 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
     @Override
     public void onBackPressed() {
-        // Home screen: Back goes nowhere.
+        // Home screen: Back goes nowhere, except out of the More apps grid.
+        closeMoreApps(true);
+    }
+
+    // ---- more apps (more_apps) -------------------------------------------------------------------
+
+    /** The full-screen grid of every app after the dock, over the same background; null unless more_apps is on. */
+    private RecyclerView moreGrid;
+    private AppAdapter moreAdapter;
+    /** The grid tile focused last, so coming back from an app lands on it again. */
+    private int moreFocused;
+
+    private void setUpMoreApps(Config cfg) {
+        moreGrid = new RecyclerView(this);
+        moreGrid.setLayoutManager(new GridLayoutManager(this, COLUMNS));
+        int side = (int) (66 * density);
+        moreGrid.setPadding(side, (int) (60 * density), side, (int) (40 * density));
+        moreGrid.setClipToPadding(false);
+        moreGrid.setClipChildren(false);
+        moreGrid.setItemAnimator(null);
+        moreGrid.setOverScrollMode(View.OVER_SCROLL_NEVER);
+        moreGrid.setVisibility(View.GONE);
+        root.addView(moreGrid, root.indexOfChild(glass), new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        // Its tiles only open their app: the dock's hero, glass and row rules do not apply here.
+        moreAdapter = new AppAdapter(this, new AppAdapter.TileListener() {
+            @Override public void onTileFocused(int position, View card) { moreFocused = position; }
+            @Override public boolean onTileVerticalKey(int position, int keyCode) { return false; }
+            @Override public void onLibraryRequested() { }
+            @Override public void onLibraryFocused() { }
+            @Override public void onTileLongPress(int position, View card) { }
+            @Override public void onLibraryUp() { }
+        }, COLUMNS, cfg);
+    }
+
+    private boolean moreAppsOpen() {
+        return moreGrid != null && moreGrid.getVisibility() == View.VISIBLE;
+    }
+
+    private void openMoreApps() {
+        moreAdapter.showRest(adapter);
+        moreGrid.setAdapter(moreAdapter);
+        showHome(false);
+        moreGrid.setAlpha(0f);
+        moreGrid.setVisibility(View.VISIBLE);
+        moreGrid.animate().alpha(1f).setDuration(180).start();
+        moreFocused = 0;
+        focusMoreTile();
+    }
+
+    private void focusMoreTile() {
+        moreGrid.post(() -> {
+            View tile = moreGrid.getLayoutManager().findViewByPosition(moreFocused);
+            if (tile != null) tile.findViewById(R.id.card).requestFocus();
+        });
+    }
+
+    /** Hidden Home content must not keep focus: Android would otherwise restore it to a tile under the grid. */
+    private void showHome(boolean shown) {
+        ViewGroup content = (ViewGroup) homeContent();
+        content.setDescendantFocusability(shown ? ViewGroup.FOCUS_AFTER_DESCENDANTS : ViewGroup.FOCUS_BLOCK_DESCENDANTS);
+        content.setVisibility(shown ? View.VISIBLE : View.INVISIBLE);
+    }
+
+    /** Back (to the button) or Home (refocus false: onNewIntent puts focus on the first tile itself). */
+    private void closeMoreApps(boolean refocus) {
+        if (!moreAppsOpen()) return;
+        moreGrid.setVisibility(View.GONE);
+        moreGrid.setAdapter(null);   // lets go of the grid's tiles; Home's adapter keeps the artwork
+        moreAdapter.clear();
+        showHome(true);
+        if (refocus) focusLibrary();
+    }
+
+    /** The header and the dock: everything but the background, the wallpaper and the More apps grid. */
+    private View homeContent() {
+        return (View) grid.getParent().getParent();
     }
 
     // ---- glass highlight -------------------------------------------------------------------------
 
     @Override
     public void onLibraryRequested() {
+        if (moreGrid != null) {
+            openMoreApps();
+            return;
+        }
         if (appLibrary != null) appLibrary.close();
         if (openPopup != null) openPopup.dismiss();
         libraryFocusPending = false;

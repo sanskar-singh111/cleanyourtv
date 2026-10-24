@@ -187,6 +187,10 @@
          no names under the tiles on Home, and the Inputs and Settings menus as plain white rows with no panel. Off by
          default; a theme can set "plain_focus": true. -->
     <bool name="plain_focus">false</bool>
+    <!-- Home shows only the dock row and, under it, a centred "More apps" button that opens every other app in a
+         full-screen grid on the same background; Back returns to Home. Apps listed in dock_apps after the dock's
+         slots come first there, in that order. Off by default; a theme can set "more_apps": true. -->
+    <bool name="more_apps">false</bool>
     <!-- A name after the greeting: "Mr. Trịnh" shows GOOD MORNING, MR. TRỊNH. Empty: the greeting alone. -->
     <string name="greeting_name" translatable="false"></string>
     <!-- Optional VPN app the network pill opens (hold the pill for Wi-Fi settings), e.g. the package of the
