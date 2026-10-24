@@ -33,3 +33,14 @@ the rules. Keys from before this rule are on its wanted list; a screenshot for o
 | `plain_focus` | <img src="switches/plain_focus.jpg" width="320" alt="plain_focus on a TV"> |
 | `more_apps` | <img src="switches/more_apps.jpg" width="320" alt="more_apps on a TV"> |
 | `idle_fade_minutes` | <img src="switches/idle_fade_minutes.jpg" width="320" alt="idle_fade_minutes on a TV: Home faded to the black background"> |
+| `bottom_shade` | <img src="switches/personal_home.jpg" width="320" alt="bottom_shade on a TV: the dock row on a dark gradient"> |
+| `weather_city` | <img src="switches/personal_home.jpg" width="320" alt="weather_city on a TV: an outline sun and the temperature beside the clock"> |
+| `dock_logos` | <img src="switches/personal_home.jpg" width="320" alt="dock_logos on a TV: white logos floating on the wallpaper"> |
+| `dock_logo_size` | <img src="switches/personal_home.jpg" width="320" alt="dock_logo_size on a TV"> |
+| `dock_taglines` | <img src="switches/personal_home.jpg" width="320" alt="dock_taglines on a TV: a line above the dock for the focused app"> |
+| `app_colors` | <img src="switches/personal_home.jpg" width="320" alt="app_colors on a TV: the glow in YouTube's red"> |
+| `tagline_align` | <img src="switches/personal_home.jpg" width="320" alt="tagline_align on a TV: the line starting at the dock's first logo"> |
+| `dock_bottom_room` | <img src="switches/personal_home.jpg" width="320" alt="dock_bottom_room on a TV: the dock low on the screen"> |
+| `scroll_dim` | <img src="switches/scroll_dim.jpg" width="320" alt="scroll_dim on a TV: More apps over a darker wallpaper"> |
+| `home_returns_to_last` | <img src="switches/home_returns_to_last.jpg" width="320" alt="home_returns_to_last on a TV: Home from Netflix lands on Netflix"> |
+| `strict_dock_nav` | <img src="switches/strict_dock_nav.jpg" width="320" alt="strict_dock_nav on a TV: Right on the last app keeps focus there"> |

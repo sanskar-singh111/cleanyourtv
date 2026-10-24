@@ -71,6 +71,10 @@ place name never shows on screen, and `""` turns the weather off.
 
 - `"app_colors"`: the glow colour behind each app, as `#RRGGBB`.
 - `"bottom_shade"`: how dark the bottom of the screen is behind the dock, 0 to 100.
+- `"tagline_align"`: `"left"` starts the line at the first logo; `"center"` centres it over the dock.
+- `"dock_bottom_room"`: how low the dock sits, as the room under it (20 now; bigger raises it).
+- `"library_button"`: `true` puts the More apps grid icon in the top bar, with no button under the dock.
+  `"show_inputs_pill": true` brings the Inputs icon back.
 - `"scroll_dim"`: how much darker the wallpaper gets in More apps (half of it as it opens, the rest as you scroll),
   0 to 90.
 
