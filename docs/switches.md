@@ -46,3 +46,11 @@ the rules. Keys from before this rule are on its wanted list; a screenshot for o
 | `strict_dock_nav` | <img src="switches/strict_dock_nav.jpg" width="320" alt="strict_dock_nav on a TV: Right on the last app keeps focus there"> |
 | `more_apps_names` | <img src="switches/more_apps_names.jpg" width="320" alt="more_apps_names on a TV: More apps with the art alone"> |
 | `tagline_rotate` | <img src="switches/tagline_rotate.jpg" width="320" alt="tagline_rotate on a TV: YouTube's second line after focus came back to it, with the glow behind the line"> |
+| `glow_strength` | <img src="switches/glow_strength.jpg" width="320" alt="glow_strength on a TV: glow_strength 90 makes the horizon glow in YouTube's red much stronger"> |
+| `glow_size` | <img src="switches/glow_strength.jpg" width="320" alt="glow_size on a TV: glow_size 150 spreads the horizon glow over the whole screen"> |
+| `focus_grow` | <img src="switches/glow_strength.jpg" width="320" alt="focus_grow on a TV: the focused YouTube logo grown 20 percent"> |
+| `focus_grow_ms` | <img src="switches/glow_strength.jpg" width="320" alt="focus_grow_ms on a TV: the focused YouTube logo after its grow has finished"> |
+| `screensaver` | <img src="switches/screensaver.jpg" width="320" alt="screensaver on a TV: clock_weather, a big clock and the temperature over the dimmed wallpaper"> |
+| `screensaver_dim` | <img src="switches/screensaver_dim.jpg" width="320" alt="screensaver_dim on a TV: the clock screensaver over the wallpaper darkened 40 percent"> |
+| `screensaver_fade_ms` | <img src="switches/screensaver_dim.jpg" width="320" alt="screensaver_fade_ms on a TV: the clock screensaver once Home has faded into it"> |
+| `screensaver_slide_minutes` | <img src="switches/screensaver_slide_minutes.jpg" width="320" alt="screensaver_slide_minutes on a TV: the slideshow's second picture a minute after the first"> |

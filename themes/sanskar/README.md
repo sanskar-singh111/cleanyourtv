@@ -81,5 +81,20 @@ place name never shows on screen, and `""` turns the weather off.
 - `"columns"`: dock slots and More apps tiles per row (6 now, for six dock apps).
 - `"scroll_dim"`: how much darker the wallpaper gets in More apps (half of it as it opens, the rest as you scroll),
   0 to 90.
+- `"glow_strength"` and `"glow_size"`: how strong (0 none to 100; about 50 if left out) and how big (50 to 200
+  percent) the glow in the app's colour is, for any `"glow_style"`.
+- `"focus_grow"` and `"focus_grow_ms"`: how much a focused logo grows (0 to 25 percent, 10 if left out) and how fast
+  (100 to 400 ms, 180 if left out).
+
+## Screensaver
+
+`"idle_fade_minutes"` (5 now) is the wait before Home fades. What it fades to:
+
+- `"screensaver"`: `"wallpaper"` (now: everything fades, the wallpaper stays), `"clock"`, `"clock_weather"` or
+  `"slideshow"`, the pictures in a `screensaver/` folder here, one at a time, in name order.
+- `"screensaver_dim"`: how dark the screen gets, 0 to 80 percent. `"screensaver_fade_ms"`: how long the fade takes
+  (1000 if left out). `"screensaver_slide_minutes"`: minutes per picture in the slideshow (5 if left out).
+
+Any button brings Home back without doing anything else. TV Studio's Screensaver page sets all of these.
 
 Every key is described in [`themes/README.md`](../README.md).
