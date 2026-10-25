@@ -54,6 +54,6 @@ the rules. Keys from before this rule are on its wanted list; a screenshot for o
 | `screensaver_dim` | <img src="switches/screensaver_dim.jpg" width="320" alt="screensaver_dim on a TV: the clock screensaver over the wallpaper darkened 40 percent"> |
 | `screensaver_fade_ms` | <img src="switches/screensaver_dim.jpg" width="320" alt="screensaver_fade_ms on a TV: the clock screensaver once Home has faded into it"> |
 | `screensaver_slide_minutes` | <img src="switches/screensaver_slide_minutes.jpg" width="320" alt="screensaver_slide_minutes on a TV: the slideshow's second picture a minute after the first"> |
-| `watchlist` | <img src="switches/watchlist.jpg" width="320" alt="watchlist on a TV: the lineup under the dock, The Flash selected in colour with a red glow and the Prime Video logo, the rest in black and white"> |
-| `watchlist_items` | <img src="switches/watchlist.jpg" width="320" alt="watchlist_items on a TV: seven cut-out characters in two rows, the selected one's scene behind them"> |
-| `watchlist_heading` | <img src="switches/watchlist.jpg" width="320" alt="watchlist_heading on a TV: the small Watchlist label at the top left of the lineup"> |
+| `watchlist` | <img src="switches/watchlist.jpg" width="320" alt="watchlist on the preview emulator, drawn with plain stand-in figures (no film artwork): the second character selected in colour with its glow, app logo and title, the rest dimmed"> |
+| `watchlist_items` | <img src="switches/watchlist.jpg" width="320" alt="watchlist_items: seven stand-in figures in two rows, a page of the lineup"> |
+| `watchlist_heading` | <img src="switches/watchlist.jpg" width="320" alt="watchlist_heading: the small Watchlist label at the top left of the lineup"> |
