@@ -19,3 +19,29 @@ traces/
 *.aab
 launcher/hs_err_pid*.log
 launcher/replay_pid*.log
+
+# Sanskar's theme pictures stay on this Mac only (artwork: wallpaper, app logos, TMDB characters, slideshow).
+# config.json and README.md in themes/sanskar are kept in git.
+themes/sanskar/wallpaper/
+themes/sanskar/logos/
+themes/sanskar/watchlist/
+themes/sanskar/screensaver/
+themes/sanskar/screenshot.jpg
+themes/sanskar/**/*.png
+themes/sanskar/**/*.jpg
+themes/sanskar/**/*.jpeg
+themes/sanskar/**/*.webp
+# TV screenshots of that theme used by docs/switches.md (on disk only; they show the same artwork).
+docs/switches/glow_strength.jpg
+docs/switches/home_returns_to_last.jpg
+docs/switches/idle_fade_minutes.jpg
+docs/switches/more_apps.jpg
+docs/switches/more_apps_names.jpg
+docs/switches/personal_home.jpg
+docs/switches/plain_focus.jpg
+docs/switches/screensaver.jpg
+docs/switches/screensaver_dim.jpg
+docs/switches/screensaver_slide_minutes.jpg
+docs/switches/scroll_dim.jpg
+docs/switches/strict_dock_nav.jpg
+docs/switches/tagline_rotate.jpg
