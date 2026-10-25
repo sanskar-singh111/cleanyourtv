@@ -2800,7 +2800,11 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     /** OK on a character: its title in its app; if the app won't take the link, the app itself. */
     private void openWatchlistItem(Watchlist.Item item) {
         if (!item.uri.isEmpty()) {
-            Intent view = new Intent(Intent.ACTION_VIEW, Uri.parse(item.uri)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            // A theme's flags replace the default: Netflix keeps a link through its profile question only when started
+            // in a fresh task (new task, clear task), with its "source" extra.
+            Intent view = new Intent(Intent.ACTION_VIEW, Uri.parse(item.uri))
+                    .addFlags(item.flags != 0 ? item.flags | Intent.FLAG_ACTIVITY_NEW_TASK : Intent.FLAG_ACTIVITY_NEW_TASK);
+            for (Map.Entry<String, String> e : item.extras.entrySet()) view.putExtra(e.getKey(), e.getValue());
             ComponentName c = item.component == null ? null : ComponentName.unflattenFromString(item.component);
             if (c != null) view.setComponent(c);
             else if (!item.packageName.isEmpty()) view.setPackage(item.packageName);

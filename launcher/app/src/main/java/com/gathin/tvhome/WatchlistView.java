@@ -26,16 +26,17 @@ import android.view.View;
 import android.view.animation.DecelerateInterpolator;
 
 import java.io.File;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
- * The watchlist section under the dock: one view that draws the whole lineup. Every figure is black and white
- * except the selected one, which turns to colour, grows a little and gets a soft glow in its own colour, with its
- * title and app logo above it and its scene crossfading in behind. Pictures are decoded when the section first
- * opens and dropped again by {@link #release()}; nothing is resized or filtered into new bitmaps here (the colour
- * changes are draw-time filters).
+ * The watchlist section under the dock: one view that draws the lineup, a page at a time. Every figure is black and
+ * white except the selected one, which turns to colour, grows a little and gets a soft glow in its own colour, with
+ * its title and app logo above it and its scene crossfading in behind. Pages slide sideways, with small dots under
+ * them. Only the page on screen and the next one hold their pictures; nothing is resized or filtered into new bitmaps
+ * here (the colour changes are draw-time filters).
  */
 @SuppressLint("ViewConstructor")   // made in code only, never from a layout
 final class WatchlistView extends View {
@@ -45,7 +46,7 @@ final class WatchlistView extends View {
         void onWatchlistOpen(Watchlist.Item item);
     }
 
-    private static final long SELECT_MS = 240, SCENE_MS = 450;
+    private static final long SELECT_MS = 240, SCENE_MS = 450, SLIDE_MS = 420;
     private static final float GROW = 0.06f;
 
     private final List<Watchlist.Item> items;
@@ -60,6 +61,7 @@ final class WatchlistView extends View {
     private final Paint glowPaint = new Paint(Paint.FILTER_BITMAP_FLAG);
     private final Paint scenePaint = new Paint(Paint.FILTER_BITMAP_FLAG);
     private final Paint shadePaint = new Paint();
+    private final Paint dotPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final TextPaint titlePaint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
     private final TextPaint headingPaint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
     private final TextPaint appPaint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
@@ -71,11 +73,18 @@ final class WatchlistView extends View {
     private final float density;
     private final String heading;
 
+    private final int pages;
     private int selected = -1;
+    /** The page on screen, and while a slide runs the page it comes from (slide 0 to 1, +1 for a slide to the right). */
+    private int page, fromPage;
+    private float slide = 1f;
+    private int slideDirection = 1;
     private File scene, previousScene;
     private float sceneMix = 1f;
-    private ValueAnimator selectAnimator, sceneAnimator;
-    private boolean loading, loaded;
+    private ValueAnimator selectAnimator, sceneAnimator, slideAnimator;
+    /** Bumped on every page change and release, so a decode that finishes late doesn't bring back unwanted pictures. */
+    private int loadGeneration;
+    private boolean logosLoaded;
     private int bottomShadeHeight = -1;
 
     WatchlistView(Context context, List<Watchlist.Item> items, Map<String, File> logos, String heading,
@@ -92,6 +101,7 @@ final class WatchlistView extends View {
         for (int i = 0; i < tints.length; i++) {
             tints[i] = new PorterDuffColorFilter(this.items.get(i).color | 0xFF000000, PorterDuff.Mode.SRC_IN);
         }
+        pages = Watchlist.pageCount(this.items);
         density = context.getResources().getDisplayMetrics().density;
         setFocusable(true);
         setFocusableInTouchMode(false);
@@ -114,34 +124,46 @@ final class WatchlistView extends View {
         return items.isEmpty();
     }
 
-    /** Decodes the figures and glows off the main thread, once; the section draws them as they arrive. */
+    /**
+     * Decodes the pictures of the page on screen and the next one (and the page being slid away from) off the main
+     * thread, and lets go of every other page's; the section draws figures as they arrive.
+     */
     void load() {
-        if (loaded || loading) return;
-        loading = true;
+        int generation = ++loadGeneration;
+        List<Integer> wanted = new ArrayList<>();
+        for (int i = 0; i < items.size(); i++) {
+            boolean keep = Watchlist.keeps(items.get(i).page, page, slide < 1f ? fromPage : page);
+            if (!keep) { figures[i] = null; glows[i] = null; }
+            else if (figures[i] == null) wanted.add(i);
+        }
+        boolean needLogos = !logosLoaded;
+        if (wanted.isEmpty() && !needLogos) return;
         new Thread(() -> {
-            Bitmap[] f = new Bitmap[items.size()], g = new Bitmap[items.size()];
             BitmapFactory.Options argb = new BitmapFactory.Options();
             argb.inPreferredConfig = Bitmap.Config.ARGB_8888;
-            for (int i = 0; i < items.size(); i++) {
+            Map<Integer, Bitmap[]> done = new HashMap<>();
+            for (int i : wanted) {
                 Watchlist.Item it = items.get(i);
-                f[i] = decode(it.image, argb);
-                if (it.glow != null) g[i] = decode(it.glow, argb);
+                done.put(i, new Bitmap[]{decode(it.image, argb), it.glow == null ? null : decode(it.glow, argb)});
             }
             Map<String, Bitmap> l = new HashMap<>();
-            for (Watchlist.Item it : items) {
-                File file = logos.get(it.packageName);
-                if (file != null && !l.containsKey(it.packageName)) {
-                    Bitmap b = decode(file, argb);
-                    if (b != null) l.put(it.packageName, b);
+            if (needLogos) {
+                for (Watchlist.Item it : items) {
+                    File file = logos.get(it.packageName);
+                    if (file != null && !l.containsKey(it.packageName)) {
+                        Bitmap b = decode(file, argb);
+                        if (b != null) l.put(it.packageName, b);
+                    }
                 }
             }
             main.post(() -> {
-                loading = false;
-                loaded = true;
-                System.arraycopy(f, 0, figures, 0, f.length);
-                System.arraycopy(g, 0, glows, 0, g.length);
-                logoBitmaps.putAll(l);
-                if (selected >= 0) showScene(items.get(selected).scene, false);
+                if (needLogos) { logoBitmaps.putAll(l); logosLoaded = true; }
+                if (generation != loadGeneration) return;   // the page changed meanwhile; that load has its own
+                for (Map.Entry<Integer, Bitmap[]> e : done.entrySet()) {
+                    figures[e.getKey()] = e.getValue()[0];
+                    glows[e.getKey()] = e.getValue()[1];
+                }
+                if (selected >= 0 && scene == null) showScene(items.get(selected).scene, false);
                 invalidate();
             });
         }, "watchlist").start();
@@ -149,11 +171,12 @@ final class WatchlistView extends View {
 
     /** Lets go of every picture (Home is in the background and memory is short); {@link #load()} brings them back. */
     void release() {
-        if (loading) return;
-        loaded = false;
+        loadGeneration++;
         for (int i = 0; i < figures.length; i++) { figures[i] = null; glows[i] = null; }
         scenes.clear();
+        scene = previousScene = null;
         logoBitmaps.clear();
+        logosLoaded = false;
     }
 
     private static Bitmap decode(File file, BitmapFactory.Options o) {
@@ -165,10 +188,13 @@ final class WatchlistView extends View {
         }
     }
 
-    /** Selects the character nearest `x` (0 to 1) in the top row, as Down from the dock does. */
+    /** Selects the character nearest `x` (0 to 1) on the page shown last, as Down from the dock does. */
     void enter(float x) {
+        int i = Watchlist.entry(items, page, x);
+        if (i >= 0) page = fromPage = items.get(i).page;
+        slide = 1f;
         load();
-        select(Watchlist.entry(items, x), false);
+        select(i, false);
     }
 
     int selected() {
@@ -177,6 +203,8 @@ final class WatchlistView extends View {
 
     private void select(int index, boolean animate) {
         if (index < 0 || index >= items.size()) return;
+        int itemPage = items.get(index).page;
+        if (itemPage != page) slideTo(itemPage, animate);
         selected = index;
         if (selectAnimator != null) selectAnimator.cancel();
         if (!animate) {
@@ -198,6 +226,28 @@ final class WatchlistView extends View {
         });
         selectAnimator.start();
         showScene(items.get(index).scene, true);
+    }
+
+    /** The page moves sideways: the new one comes in from the right going forward, from the left going back. */
+    private void slideTo(int to, boolean animate) {
+        if (slideAnimator != null) slideAnimator.cancel();
+        fromPage = page;
+        slideDirection = to > page ? 1 : -1;
+        page = to;
+        slide = animate ? 0f : 1f;
+        load();
+        if (!animate) return;
+        slideAnimator = ValueAnimator.ofFloat(0f, 1f).setDuration(SLIDE_MS);
+        slideAnimator.setInterpolator(new DecelerateInterpolator(2f));
+        slideAnimator.addUpdateListener(a -> {
+            slide = (float) a.getAnimatedValue();
+            if (slide >= 1f) {
+                fromPage = page;
+                load();   // the page slid away from can go now
+            }
+            invalidate();
+        });
+        slideAnimator.start();
     }
 
     private void showScene(File next, boolean animate) {
@@ -307,14 +357,41 @@ final class WatchlistView extends View {
                     new float[]{0f, 0.22f, 0.62f, 0.9f, 1f}, Shader.TileMode.CLAMP));
         }
 
-        for (int i : Watchlist.drawOrder(items, selected)) drawFigure(canvas, i, w, h);
+        if (slide < 1f && fromPage != page) {
+            // Mid-slide: the old page leaves on one side while the new one comes in from the other.
+            drawPage(canvas, fromPage, -slideDirection * slide * w, w, h);
+            drawPage(canvas, page, slideDirection * (1f - slide) * w, w, h);
+        } else {
+            drawPage(canvas, page, 0f, w, h);
+        }
         // Legs fade into black at the bottom edge, for both rows.
         canvas.drawRect(0, 0, w, h, shadePaint);
+        drawDots(canvas, w, h);
 
         if (!heading.isEmpty()) {
             canvas.drawText(heading.toUpperCase(java.util.Locale.ROOT), 60 * density, 54 * density, headingPaint);
         }
-        if (selected >= 0) drawTitle(canvas, selected, w, h);
+        if (selected >= 0 && slide >= 1f) drawTitle(canvas, selected, w, h);
+    }
+
+    private void drawPage(Canvas canvas, int p, float dx, int w, int h) {
+        if (dx != 0f) {
+            canvas.save();
+            canvas.translate(dx, 0f);
+        }
+        for (int i : Watchlist.drawOrder(items, p, selected)) drawFigure(canvas, i, w, h);
+        if (dx != 0f) canvas.restore();
+    }
+
+    /** Small dots under the lineup when there is more than one page; the one on screen is white. */
+    private void drawDots(Canvas canvas, int w, int h) {
+        if (pages < 2) return;
+        float r = 3.5f * density, gap = 14 * density;
+        float x0 = w / 2f - (pages - 1) * gap / 2f, y = h - 30 * density;
+        for (int p = 0; p < pages; p++) {
+            dotPaint.setColor(p == page ? 0xF2FFFFFF : 0x59FFFFFF);
+            canvas.drawCircle(x0 + p * gap, y, p == page ? r * 1.15f : r, dotPaint);
+        }
     }
 
     private void drawScene(Canvas canvas, Bitmap b, float alpha, int w, int h) {

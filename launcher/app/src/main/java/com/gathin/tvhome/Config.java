@@ -684,10 +684,11 @@ final class Config {
 
     /**
      * {@code "watchlist_items": [{"title": "Breaking Bad", "image": "watchlist/tv-1396.png", "glow": "watchlist/tv-1396-glow.png",
-     * "scene": "watchlist/tv-1396-bg.jpg", "color": "#2CD93A", "row": 0, "x": 0.5, "bottom": 0.84, "height": 0.5,
+     * "scene": "watchlist/tv-1396-bg.jpg", "color": "#2CD93A", "page": 0, "row": 0, "x": 0.5, "bottom": 0.84, "height": 0.5,
      * "package": "com.netflix.ninja", "uri": "https://www.netflix.com/title/70143836",
-     * "component": "com.netflix.ninja/.MainActivity", "app": "Netflix"}]}. An item without its picture is left out on
-     * its own; row 0 is the back row, 1 the front.
+     * "component": "com.netflix.ninja/.MainActivity", "flags": 276856832, "extras": {"source": "30"}, "app": "Netflix"}]}.
+     * An item without its picture is left out on its own; row 0 is the back row, 1 the front; flags are the intent's
+     * (a number, or text such as "0x10808000").
      */
     private static List<Watchlist.Item> watchlistItems(JSONObject json, File dir) {
         List<Watchlist.Item> out = new ArrayList<>();
@@ -703,11 +704,20 @@ final class Config {
             }
             Integer color = parseColor(o.optString("color", ""));
             String component = o.optString("component", "").trim();
+            Map<String, String> extras = new HashMap<>();
+            JSONObject e = o.optJSONObject("extras");
+            if (e != null) {
+                for (java.util.Iterator<String> k = e.keys(); k.hasNext(); ) {
+                    String key = k.next();
+                    extras.put(key, e.optString(key, ""));
+                }
+            }
             out.add(new Watchlist.Item(o.optString("title", ""), image, themeFile(dir, o.optString("glow", null)),
                     themeFile(dir, o.optString("scene", null)), color == null ? 0xFFFFFFFF : color,
-                    o.optInt("row", Watchlist.FRONT), (float) o.optDouble("x", 0.5), (float) o.optDouble("bottom", 1.0),
-                    (float) o.optDouble("height", 0.5), o.optString("package", ""), o.optString("uri", ""),
-                    component.isEmpty() ? null : component, o.optString("app", "")));
+                    o.optInt("row", Watchlist.FRONT), o.optInt("page", 0), (float) o.optDouble("x", 0.5),
+                    (float) o.optDouble("bottom", 1.0), (float) o.optDouble("height", 0.5), o.optString("package", ""),
+                    o.optString("uri", ""), component.isEmpty() ? null : component, intentFlags(o.opt("flags")), extras,
+                    o.optString("app", "")));
         }
         return out;
     }
@@ -940,6 +950,18 @@ final class Config {
             if (c != null) out.put(e.getKey(), c);
         }
         return out;
+    }
+
+    /** Intent flags from a theme: a number, or text in decimal or 0x hex; anything else is no flags. */
+    static int intentFlags(Object v) {
+        if (v instanceof Number) return ((Number) v).intValue();
+        if (!(v instanceof String)) return 0;
+        String s = ((String) v).trim().toLowerCase(java.util.Locale.ROOT);
+        try {
+            return s.startsWith("0x") ? (int) Long.parseLong(s.substring(2), 16) : (int) Long.parseLong(s);
+        } catch (NumberFormatException ex) {
+            return 0;
+        }
     }
 
     /** #RRGGBB (or #AARRGGBB, made opaque) without android.graphics.Color, so the JVM tests can call it; null if not one. */
