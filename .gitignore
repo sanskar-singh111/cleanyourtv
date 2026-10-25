@@ -26,22 +26,12 @@ themes/sanskar/wallpaper/
 themes/sanskar/logos/
 themes/sanskar/watchlist/
 themes/sanskar/screensaver/
-themes/sanskar/screenshot.jpg
+themes/sanskar/screenshot-tv.jpg
 themes/sanskar/**/*.png
 themes/sanskar/**/*.jpg
 themes/sanskar/**/*.jpeg
 themes/sanskar/**/*.webp
-# TV screenshots of that theme used by docs/switches.md (on disk only; they show the same artwork).
-docs/switches/glow_strength.jpg
-docs/switches/home_returns_to_last.jpg
-docs/switches/idle_fade_minutes.jpg
-docs/switches/more_apps.jpg
-docs/switches/more_apps_names.jpg
-docs/switches/personal_home.jpg
-docs/switches/plain_focus.jpg
-docs/switches/screensaver.jpg
-docs/switches/screensaver_dim.jpg
-docs/switches/screensaver_slide_minutes.jpg
-docs/switches/scroll_dim.jpg
-docs/switches/strict_dock_nav.jpg
-docs/switches/tagline_rotate.jpg
+# ...except the theme's screenshot, which is a stand-in without artwork (the real one is screenshot-tv.jpg).
+!themes/sanskar/screenshot.jpg
+# The TV screenshots of that theme that used to illustrate docs/switches.md are in work/switch-shots-tv/ (ignored);
+# docs/switches.md shows stand-ins from the preview emulator instead.
