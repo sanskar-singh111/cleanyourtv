@@ -45,8 +45,8 @@ final class Watchlist {
             this.color = color;
             this.row = row == BACK ? BACK : FRONT;
             this.x = clamp(x, 0f, 1f);
-            this.bottom = clamp(bottom, 0.2f, 1.3f);
-            this.height = clamp(height, 0.1f, 0.9f);
+            this.bottom = clamp(bottom, 0.2f, 1.6f);
+            this.height = clamp(height, 0.1f, 1f);
             this.packageName = packageName == null ? "" : packageName;
             this.uri = uri == null ? "" : uri;
             this.component = component;

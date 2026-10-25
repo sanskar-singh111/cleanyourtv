@@ -81,8 +81,8 @@ public class WatchlistTest {
         Watchlist.Item i = new Watchlist.Item("x", new File("x.png"), null, null, 0, 5, -1f, 9f, 2f, null, null, null, null);
         assertEquals(Watchlist.FRONT, i.row);
         assertEquals(0f, i.x, 0f);
-        assertEquals(1.3f, i.bottom, 0f);
-        assertEquals(0.9f, i.height, 0f);
+        assertEquals(1.6f, i.bottom, 0f);
+        assertEquals(1f, i.height, 0f);
         assertEquals("", i.uri);
     }
 }
