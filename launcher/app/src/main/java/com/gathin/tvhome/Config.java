@@ -254,6 +254,10 @@ final class Config {
     final int screensaverDim, screensaverFadeMs, screensaverSlideMinutes;
     /** The pictures in the theme's screensaver/ folder; read only for the "slideshow" screensaver. */
     final List<File> screensaverImages;
+    /** The watchlist lineup under the dock (config.xml watchlist), its characters and its small label. */
+    final boolean watchlist;
+    final List<Watchlist.Item> watchlistItems;
+    final String watchlistHeading;
 
     private Config(List<String> dockApps, boolean fillDock, List<String> hiddenApps, List<String> libraryApps, String liveTvPackage,
                    String liveTvAction, String liveTvInputId, Map<String, String> launchActions, Map<String, String> appLabels,
@@ -273,7 +277,11 @@ final class Config {
                    Map<String, Integer> appColors, boolean homeReturnsToLast, boolean strictDockNav,
                    boolean taglineCentered, int dockBottomRoom, boolean moreAppsNames, boolean taglineOnFocus,
                    int glowStrength, int glowSize, int focusGrow, int focusGrowMs, String screensaver, int screensaverDim,
-                   int screensaverFadeMs, int screensaverSlideMinutes, List<File> screensaverImages) {
+                   int screensaverFadeMs, int screensaverSlideMinutes, List<File> screensaverImages,
+                   boolean watchlist, List<Watchlist.Item> watchlistItems, String watchlistHeading) {
+        this.watchlist = watchlist && !watchlistItems.isEmpty();
+        this.watchlistItems = Collections.unmodifiableList(watchlistItems);
+        this.watchlistHeading = watchlistHeading == null ? "" : watchlistHeading;
         this.glowStrength = glowStrength;
         this.glowSize = glowSize;
         this.focusGrow = focusGrow;
@@ -494,6 +502,8 @@ final class Config {
         int screensaverDim = res.getInteger(R.integer.screensaver_dim);
         int screensaverFadeMs = res.getInteger(R.integer.screensaver_fade_ms);
         int screensaverSlideMinutes = res.getInteger(R.integer.screensaver_slide_minutes);
+        boolean watchlist = res.getBoolean(R.bool.watchlist);
+        String watchlistHeading = "";
         boolean applied = false;
 
         File dir = dir(ctx);
@@ -599,6 +609,8 @@ final class Config {
             screensaverDim = integer(json, "screensaver_dim", screensaverDim, 0, 80);
             screensaverFadeMs = integer(json, "screensaver_fade_ms", screensaverFadeMs, 250, 5000);
             screensaverSlideMinutes = integer(json, "screensaver_slide_minutes", screensaverSlideMinutes, 1, 60);
+            watchlist = bool(json, "watchlist", watchlist);
+            watchlistHeading = string(json, "watchlist_heading", watchlistHeading);
         }
         // A theme push or reset invalidates choices made on the TV. On first use, remember the
         // current theme without clearing choices from an older launcher version.
@@ -665,7 +677,39 @@ final class Config {
                 clamp(screensaverFadeMs, 250, 5000), clamp(screensaverSlideMinutes, 1, 60),
                 // Nothing is listed unless the slideshow is on.
                 dir != null && Screensaver.SLIDESHOW.equals(Screensaver.mode(screensaver))
-                        ? WallpaperRotation.images(new File(dir, Screensaver.FOLDER)) : new ArrayList<>());
+                        ? WallpaperRotation.images(new File(dir, Screensaver.FOLDER)) : new ArrayList<>(),
+                // Nothing is read unless the watchlist is on.
+                watchlist, watchlist && json != null ? watchlistItems(json, dir) : new ArrayList<>(), watchlistHeading);
+    }
+
+    /**
+     * {@code "watchlist_items": [{"title": "Breaking Bad", "image": "watchlist/tv-1396.png", "glow": "watchlist/tv-1396-glow.png",
+     * "scene": "watchlist/tv-1396-bg.jpg", "color": "#2CD93A", "row": 0, "x": 0.5, "bottom": 0.84, "height": 0.5,
+     * "package": "com.netflix.ninja", "uri": "https://www.netflix.com/title/70143836",
+     * "component": "com.netflix.ninja/.MainActivity", "app": "Netflix"}]}. An item without its picture is left out on
+     * its own; row 0 is the back row, 1 the front.
+     */
+    private static List<Watchlist.Item> watchlistItems(JSONObject json, File dir) {
+        List<Watchlist.Item> out = new ArrayList<>();
+        JSONArray list = json.optJSONArray("watchlist_items");
+        if (list == null) return out;
+        for (int i = 0; i < list.length() && out.size() < Watchlist.MAX_ITEMS; i++) {
+            JSONObject o = list.optJSONObject(i);
+            if (o == null) continue;
+            File image = themeFile(dir, o.optString("image", null));
+            if (image == null) {
+                Log.w(TAG, "watchlist item " + i + " has no picture");
+                continue;
+            }
+            Integer color = parseColor(o.optString("color", ""));
+            String component = o.optString("component", "").trim();
+            out.add(new Watchlist.Item(o.optString("title", ""), image, themeFile(dir, o.optString("glow", null)),
+                    themeFile(dir, o.optString("scene", null)), color == null ? 0xFFFFFFFF : color,
+                    o.optInt("row", Watchlist.FRONT), (float) o.optDouble("x", 0.5), (float) o.optDouble("bottom", 1.0),
+                    (float) o.optDouble("height", 0.5), o.optString("package", ""), o.optString("uri", ""),
+                    component.isEmpty() ? null : component, o.optString("app", "")));
+        }
+        return out;
     }
 
     /**

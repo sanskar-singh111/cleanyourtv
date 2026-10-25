@@ -439,4 +439,10 @@
     <integer name="screensaver_fade_ms">1000</integer>
     <!-- With "slideshow", minutes per picture, 1 to 60 (5, default). "screensaver_slide_minutes": 10. -->
     <integer name="screensaver_slide_minutes">5</integer>
+    <!-- Watchlist lineup under the dock (false, default). A theme sets "watchlist": true together with
+         "watchlist_items", which a tool such as TV Studio writes: cut-out characters in two rows, each opening its title
+         in a streaming app. Down from the dock scrolls the page to it; Up from its top row comes back. The pictures sit
+         in the theme's watchlist/ folder at their final size; the TV only draws them. Optional "watchlist_heading" is a
+         small label over the section. Off, nothing is read or drawn. -->
+    <bool name="watchlist">false</bool>
 </resources>

@@ -149,6 +149,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private float growScale = AppAdapter.FOCUS_SCALE;
     private int growMs = 180;
     private final Runnable fadeHome = () -> {
+        if (this.inWatchlist) exitWatchlist(false);   // the screensaver fades Home itself, not the lineup over it
         faded = true;
         for (View v : fadingViews()) v.animate().alpha(0f).setDuration(saverFadeMs).start();
         showSaver();
@@ -165,6 +166,11 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private String sourcePanelAction;
     private String sourcePanelExtra;
     private boolean coocaaSources;
+
+    /** watchlist: the lineup under the dock, and whether the page is scrolled down to it. */
+    private WatchlistView watchlistView;
+    private boolean inWatchlist;
+    private ValueAnimator pageScroll;
 
     private AppAdapter adapter;
     private RecyclerView grid;
@@ -496,6 +502,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         }
         homeReturnsToLast = cfg.homeReturnsToLast;
         strictDockNav = cfg.strictDockNav;
+        if (cfg.watchlist) setUpWatchlist(cfg);
         heroName = findViewById(R.id.heroName);
         hero = findViewById(R.id.hero);
         // The hero is now a group (name, and the cinematic lines): without this every fade of the default
@@ -932,6 +939,15 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (intent == null || !intent.hasCategory(Intent.CATEGORY_HOME)) return;
         if (faded) unfade(250);
         restartIdleClock();
+        if (inWatchlist) {
+            // Home on the lineup scrolls back up to the dock. Coming back from a title's app, the lineup stays when
+            // Home returns to what was used last.
+            if (!stopped) {
+                exitWatchlist(true);
+                return;
+            }
+            if (!homeReturnsToLast) exitWatchlist(false);
+        }
         if (homeReturnsToLast) {
             // Back to what was used last: from an app, the tile it was opened from (in the More apps grid too, which
             // stays open); on Home already, the dock app focused last.
@@ -967,6 +983,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         }
         stopped = false;
         started = true;
+        if (inWatchlist) watchlistView.load();   // after onTrimMemory let its pictures go
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(timeReceiver, timeFilter, Context.RECEIVER_NOT_EXPORTED);
         } else {
@@ -1416,6 +1433,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         heroArtCache.clear();
         heroArtKey = null;
         tileRefresh.invalidate();
+        if (watchlistView != null) watchlistView.release();
     }
 
     @Override
@@ -2720,6 +2738,89 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 : res.getString(R.string.storage_gb_decimal, gb);
     }
 
+    // ---- watchlist ---------------------------------------------------------------------------------
+
+    /** watchlist: the lineup sits under the page, a screen's height down, until Down from the dock scrolls to it. */
+    private void setUpWatchlist(Config cfg) {
+        WatchlistView view = new WatchlistView(this, cfg.watchlistItems, cfg.dockLogos, cfg.watchlistHeading,
+                UiFont.get(this, R.string.font_light), UiFont.get(this, R.string.font_medium), new WatchlistView.Listener() {
+            @Override public void onWatchlistExit() { exitWatchlist(true); }
+            @Override public void onWatchlistOpen(Watchlist.Item item) { openWatchlistItem(item); }
+        });
+        if (view.isEmpty()) return;
+        watchlistView = view;
+        ViewGroup content = findViewById(android.R.id.content);
+        content.addView(view, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        view.setVisibility(View.INVISIBLE);
+    }
+
+    private void enterWatchlist(int dockPosition) {
+        if (inWatchlist) return;
+        inWatchlist = true;
+        lastFocused = dockPosition;
+        // Lands on the top-row character nearest the dock app that was focused.
+        float x = 0.5f;
+        View tile = grid.getLayoutManager() == null ? null : grid.getLayoutManager().findViewByPosition(dockPosition);
+        if (tile != null && root.getWidth() > 0) {
+            int[] at = new int[2];
+            tile.getLocationOnScreen(at);
+            x = (at[0] + tile.getWidth() / 2f) / root.getWidth();
+        }
+        hideGlass();
+        watchlistView.enter(x);
+        watchlistView.setVisibility(View.VISIBLE);
+        watchlistView.requestFocus();
+        scrollPage(1f, true);
+    }
+
+    private void exitWatchlist(boolean animate) {
+        if (!inWatchlist) return;
+        inWatchlist = false;
+        scrollPage(0f, animate);
+        focusTile(lastFocused);
+    }
+
+    /** 0 is Home as always, 1 the lineup filling the screen; the page moves up as one. */
+    private void scrollPage(float to, boolean animate) {
+        if (pageScroll != null) pageScroll.cancel();
+        int h = root.getHeight();
+        float from = h == 0 ? 1f - to : -root.getTranslationY() / h;
+        if (!animate || reducedMotion || h == 0) {
+            setPageScroll(to, h);
+            return;
+        }
+        pageScroll = ValueAnimator.ofFloat(from, to).setDuration(460);
+        pageScroll.setInterpolator(new DecelerateInterpolator(2f));
+        pageScroll.addUpdateListener(a -> setPageScroll((float) a.getAnimatedValue(), root.getHeight()));
+        pageScroll.start();
+    }
+
+    private void setPageScroll(float p, int h) {
+        root.setTranslationY(-p * h);
+        watchlistView.setTranslationY((1f - p) * h);
+        if (p <= 0f && !inWatchlist) watchlistView.setVisibility(View.INVISIBLE);
+    }
+
+    /** OK on a character: its title in its app; if the app won't take the link, the app itself. */
+    private void openWatchlistItem(Watchlist.Item item) {
+        if (!item.uri.isEmpty()) {
+            Intent view = new Intent(Intent.ACTION_VIEW, Uri.parse(item.uri)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            ComponentName c = item.component == null ? null : ComponentName.unflattenFromString(item.component);
+            if (c != null) view.setComponent(c);
+            else if (!item.packageName.isEmpty()) view.setPackage(item.packageName);
+            try {
+                startActivity(view);
+                return;
+            } catch (ActivityNotFoundException | SecurityException ignored) {
+                // falls through to the app itself
+            }
+        }
+        Intent launch = item.packageName.isEmpty() ? null : getPackageManager().getLeanbackLaunchIntentForPackage(item.packageName);
+        if (launch == null && !item.packageName.isEmpty()) launch = getPackageManager().getLaunchIntentForPackage(item.packageName);
+        if (launch != null) open(launch);
+        else Toast.makeText(this, R.string.not_available, Toast.LENGTH_SHORT).show();
+    }
+
     // ---- navigation ------------------------------------------------------------------------------
 
     @Override
@@ -2753,6 +2854,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             int lastRowStart = ((count - 1) / COLUMNS) * COLUMNS;
             if (position >= lastRowStart) {
                 if (adapter.isLibraryAt(count)) focusLibrary();
+                else if (watchlistView != null) enterWatchlist(position);
                 return true;
             }
             target = Math.min(position + COLUMNS, count - 1);
