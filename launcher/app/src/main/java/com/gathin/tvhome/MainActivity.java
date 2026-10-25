@@ -940,13 +940,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (faded) unfade(250);
         restartIdleClock();
         if (inWatchlist) {
-            // Home on the lineup scrolls back up to the dock. Coming back from a title's app, the lineup stays when
-            // Home returns to what was used last.
-            if (!stopped) {
-                exitWatchlist(true);
-                return;
-            }
-            if (!homeReturnsToLast) exitWatchlist(false);
+            // Home always comes back to the dock: scrolling up on the lineup, at once on the way back from an app.
+            exitWatchlist(!stopped);
+            if (!stopped) return;
         }
         if (homeReturnsToLast) {
             // Back to what was used last: from an app, the tile it was opened from (in the More apps grid too, which
