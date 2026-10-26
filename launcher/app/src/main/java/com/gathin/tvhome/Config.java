@@ -258,6 +258,11 @@ final class Config {
     final boolean watchlist;
     final List<Watchlist.Item> watchlistItems;
     final String watchlistHeading;
+    /** The mood deck under the watchlist (config.xml mood_deck), its moods, the titles they hold and its heading. */
+    final boolean moodDeck;
+    final List<MoodDeck.Mood> moodDeckMoods;
+    final List<MoodDeck.Title> moodDeckTitles;
+    final String moodDeckHeading;
 
     private Config(List<String> dockApps, boolean fillDock, List<String> hiddenApps, List<String> libraryApps, String liveTvPackage,
                    String liveTvAction, String liveTvInputId, Map<String, String> launchActions, Map<String, String> appLabels,
@@ -278,8 +283,13 @@ final class Config {
                    boolean taglineCentered, int dockBottomRoom, boolean moreAppsNames, boolean taglineOnFocus,
                    int glowStrength, int glowSize, int focusGrow, int focusGrowMs, String screensaver, int screensaverDim,
                    int screensaverFadeMs, int screensaverSlideMinutes, List<File> screensaverImages,
-                   boolean watchlist, List<Watchlist.Item> watchlistItems, String watchlistHeading) {
+                   boolean watchlist, List<Watchlist.Item> watchlistItems, String watchlistHeading,
+                   boolean moodDeck, MoodDeckData moodDeckData, String moodDeckHeading) {
         this.watchlist = watchlist && !watchlistItems.isEmpty();
+        this.moodDeckMoods = Collections.unmodifiableList(MoodDeck.usable(moodDeckData.moods));
+        this.moodDeckTitles = Collections.unmodifiableList(moodDeckData.titles);
+        this.moodDeck = moodDeck && this.watchlist && !this.moodDeckMoods.isEmpty();
+        this.moodDeckHeading = moodDeckHeading == null ? "" : moodDeckHeading;
         this.watchlistItems = Collections.unmodifiableList(watchlistItems);
         this.watchlistHeading = watchlistHeading == null ? "" : watchlistHeading;
         this.glowStrength = glowStrength;
@@ -504,6 +514,8 @@ final class Config {
         int screensaverSlideMinutes = res.getInteger(R.integer.screensaver_slide_minutes);
         boolean watchlist = res.getBoolean(R.bool.watchlist);
         String watchlistHeading = "";
+        boolean moodDeck = res.getBoolean(R.bool.mood_deck);
+        String moodDeckHeading = "";
         boolean applied = false;
 
         File dir = dir(ctx);
@@ -611,6 +623,8 @@ final class Config {
             screensaverSlideMinutes = integer(json, "screensaver_slide_minutes", screensaverSlideMinutes, 1, 60);
             watchlist = bool(json, "watchlist", watchlist);
             watchlistHeading = string(json, "watchlist_heading", watchlistHeading);
+            moodDeck = bool(json, "mood_deck", moodDeck);
+            moodDeckHeading = string(json, "mood_deck_heading", moodDeckHeading);
         }
         // A theme push or reset invalidates choices made on the TV. On first use, remember the
         // current theme without clearing choices from an older launcher version.
@@ -679,7 +693,69 @@ final class Config {
                 dir != null && Screensaver.SLIDESHOW.equals(Screensaver.mode(screensaver))
                         ? WallpaperRotation.images(new File(dir, Screensaver.FOLDER)) : new ArrayList<>(),
                 // Nothing is read unless the watchlist is on.
-                watchlist, watchlist && json != null ? watchlistItems(json, dir) : new ArrayList<>(), watchlistHeading);
+                watchlist, watchlist && json != null ? watchlistItems(json, dir) : new ArrayList<>(), watchlistHeading,
+                // Nor of the deck unless it and the watchlist are on.
+                moodDeck, moodDeck && watchlist && json != null ? moodDeck(json, dir) : new MoodDeckData(), moodDeckHeading);
+    }
+
+    /** The deck as read from a theme: its titles, and its moods pointing at them by position. */
+    static final class MoodDeckData {
+        final List<MoodDeck.Title> titles = new ArrayList<>();
+        final List<MoodDeck.Mood> moods = new ArrayList<>();
+    }
+
+    /**
+     * {@code "mood_deck_titles": [{"key": "tv-1396", "title": "Breaking Bad", "poster": "moods/tv-1396-poster.jpg",
+     * "backdrop": "moods/tv-1396-backdrop.jpg", "package": "com.netflix.ninja", "uri": "https://www.netflix.com/title/70143836",
+     * "component": "com.netflix.ninja/.MainActivity", "flags": "0x10808000", "extras": {"source": "30"}, "app": "Netflix"}]}
+     * and {@code "mood_deck_moods": [{"name": "Crime", "color": "#5B7DB1", "titles": ["tv-1396"]}]}. A title without its
+     * poster or link is left out on its own, a mood's unknown keys are skipped, and a mood left with none is hidden.
+     */
+    static MoodDeckData moodDeck(JSONObject json, File dir) {
+        MoodDeckData out = new MoodDeckData();
+        Map<String, Integer> byKey = new HashMap<>();
+        JSONArray list = json.optJSONArray("mood_deck_titles");
+        for (int i = 0; list != null && i < list.length() && out.titles.size() < MoodDeck.MAX_TITLES; i++) {
+            JSONObject o = list.optJSONObject(i);
+            if (o == null) continue;
+            String key = o.optString("key", "").trim();
+            File poster = themeFile(dir, o.optString("poster", null));
+            String uri = o.optString("uri", "").trim();
+            if (key.isEmpty() || poster == null || uri.isEmpty() || byKey.containsKey(key)) {
+                Log.w(TAG, "mood deck title " + i + " has no key, poster or link");
+                continue;
+            }
+            String component = o.optString("component", "").trim();
+            byKey.put(key, out.titles.size());
+            out.titles.add(new MoodDeck.Title(key, o.optString("title", ""), poster, themeFile(dir, o.optString("backdrop", null)),
+                    o.optString("package", ""), uri, component.isEmpty() ? null : component, intentFlags(o.opt("flags")),
+                    textExtras(o.optJSONObject("extras")), o.optString("app", "")));
+        }
+        JSONArray moods = json.optJSONArray("mood_deck_moods");
+        for (int i = 0; moods != null && i < moods.length() && out.moods.size() < MoodDeck.MAX_MOODS; i++) {
+            JSONObject o = moods.optJSONObject(i);
+            if (o == null) continue;
+            List<Integer> titles = new ArrayList<>();
+            JSONArray keys = o.optJSONArray("titles");
+            for (int k = 0; keys != null && k < keys.length(); k++) {
+                Integer at = byKey.get(keys.optString(k, ""));
+                if (at != null && !titles.contains(at)) titles.add(at);
+            }
+            Integer color = parseColor(o.optString("color", ""));
+            if (!titles.isEmpty()) out.moods.add(new MoodDeck.Mood(o.optString("name", ""), color == null ? 0xFFB8C0CC : color, titles));
+        }
+        return out;
+    }
+
+    /** {"name": "value"} as text extras; anything that isn't an object is none. */
+    static Map<String, String> textExtras(JSONObject e) {
+        Map<String, String> extras = new HashMap<>();
+        if (e == null) return extras;
+        for (java.util.Iterator<String> k = e.keys(); k.hasNext(); ) {
+            String key = k.next();
+            extras.put(key, e.optString(key, ""));
+        }
+        return extras;
     }
 
     /**

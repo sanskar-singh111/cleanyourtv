@@ -148,4 +148,15 @@
     <string name="last_opened">Last opened %1$s</string>
     <!-- weather_city: the temperature beside the clock. -->
     <string name="weather_celsius" translatable="false">%1$d°C</string>
+    <!-- mood_deck: the deck of mood cards under the watchlist (MoodDeckView). -->
+    <plurals name="mood_titles">
+        <item quantity="one">%1$d title</item>
+        <item quantity="other">%1$d titles</item>
+    </plurals>
+    <!-- After the reel lands, before the title opens by itself: "Opening in 3…". -->
+    <string name="mood_opening">Opening in %1$d…</string>
+    <string name="mood_keys">◀  Nope        Spin  ▶  or  OK</string>
+    <string name="mood_keys_one">Spin  ▶  or  OK</string>
+    <string name="mood_keys_spinning">◀  Stop</string>
+    <string name="mood_keys_countdown">OK  Open now        ▶  Spin again        ◀  Cancel</string>
 </resources>

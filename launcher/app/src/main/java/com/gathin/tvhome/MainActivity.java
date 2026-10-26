@@ -170,6 +170,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     /** watchlist: the lineup under the dock, and whether the page is scrolled down to it. */
     private WatchlistView watchlistView;
     private boolean inWatchlist;
+    /** mood_deck: the deck under the watchlist, and whether the page is scrolled on down to it (inWatchlist stays true). */
+    private MoodDeckView moodDeckView;
+    private boolean inDeck;
     private ValueAnimator pageScroll;
 
     private AppAdapter adapter;
@@ -980,6 +983,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         stopped = false;
         started = true;
         if (inWatchlist) watchlistView.load();   // after onTrimMemory let its pictures go
+        if (inDeck) moodDeckView.load();
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(timeReceiver, timeFilter, Context.RECEIVER_NOT_EXPORTED);
         } else {
@@ -1430,6 +1434,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         heroArtKey = null;
         tileRefresh.invalidate();
         if (watchlistView != null) watchlistView.release();
+        if (moodDeckView != null) moodDeckView.release();
     }
 
     @Override
@@ -2741,13 +2746,52 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         WatchlistView view = new WatchlistView(this, cfg.watchlistItems, cfg.dockLogos, cfg.watchlistHeading,
                 UiFont.get(this, R.string.font_light), UiFont.get(this, R.string.font_medium), new WatchlistView.Listener() {
             @Override public void onWatchlistExit() { exitWatchlist(true); }
-            @Override public void onWatchlistOpen(Watchlist.Item item) { openWatchlistItem(item); }
+            @Override public void onWatchlistOpen(Watchlist.Item item) {
+                openTitle(item.packageName, item.uri, item.component, item.flags, item.extras);
+            }
+            @Override public boolean onWatchlistDown() { return enterDeck(); }
         });
         if (view.isEmpty()) return;
         watchlistView = view;
         ViewGroup content = findViewById(android.R.id.content);
         content.addView(view, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         view.setVisibility(View.INVISIBLE);
+        if (cfg.moodDeck) setUpMoodDeck(cfg, content);
+    }
+
+    /** mood_deck: the deck sits a screen's height under the lineup, until Down from any watchlist page scrolls to it. */
+    private void setUpMoodDeck(Config cfg, ViewGroup content) {
+        MoodDeckView deck = new MoodDeckView(this, cfg.moodDeckTitles, cfg.moodDeckMoods, cfg.moodDeckHeading,
+                UiFont.get(this, R.string.font_light), UiFont.get(this, R.string.font_medium), new MoodDeckView.Listener() {
+            @Override public void onDeckUp() { exitDeck(); }
+            @Override public void onDeckOpen(MoodDeck.Title t) { openTitle(t.packageName, t.uri, t.component, t.flags, t.extras); }
+        });
+        if (deck.isEmpty()) return;
+        moodDeckView = deck;
+        content.addView(deck, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        deck.setVisibility(View.INVISIBLE);
+    }
+
+    /** Down from the lineup: the page moves on down to the deck; the lineup keeps its page and character. */
+    private boolean enterDeck() {
+        if (moodDeckView == null || !inWatchlist || inDeck) return false;
+        inDeck = true;
+        moodDeckView.enter();
+        moodDeckView.setVisibility(View.VISIBLE);
+        moodDeckView.requestFocus();
+        scrollPage(2f, true);
+        return true;
+    }
+
+    /** Up from the deck: back to the lineup on the page and character it was left on. */
+    private void exitDeck() {
+        if (!inDeck) return;
+        inDeck = false;
+        moodDeckView.reset();
+        watchlistView.load();
+        watchlistView.setVisibility(View.VISIBLE);
+        watchlistView.requestFocus();
+        scrollPage(1f, true);
     }
 
     private void enterWatchlist(int dockPosition) {
@@ -2772,11 +2816,17 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private void exitWatchlist(boolean animate) {
         if (!inWatchlist) return;
         inWatchlist = false;
+        if (inDeck) {
+            // Home from the deck: all the way up to the dock, past the lineup.
+            inDeck = false;
+            moodDeckView.reset();
+            watchlistView.setVisibility(View.VISIBLE);
+        }
         scrollPage(0f, animate);
         focusTile(lastFocused);
     }
 
-    /** 0 is Home as always, 1 the lineup filling the screen; the page moves up as one. */
+    /** 0 is Home as always, 1 the lineup filling the screen, 2 the mood deck; the page moves up as one. */
     private void scrollPage(float to, boolean animate) {
         if (pageScroll != null) pageScroll.cancel();
         int h = root.getHeight();
@@ -2795,19 +2845,30 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         root.setTranslationY(-p * h);
         watchlistView.setTranslationY((1f - p) * h);
         if (p <= 0f && !inWatchlist) watchlistView.setVisibility(View.INVISIBLE);
+        if (moodDeckView != null) {
+            moodDeckView.setTranslationY((2f - p) * h);
+            // Off screen, each lets go of what it doesn't show: the lineup under the deck, the deck's pictures above it.
+            if (p >= 2f && inDeck) watchlistView.setVisibility(View.INVISIBLE);
+            if (p <= 1f && !inDeck && moodDeckView.getVisibility() == View.VISIBLE) {
+                moodDeckView.setVisibility(View.INVISIBLE);
+                moodDeckView.release();
+            }
+        }
     }
 
-    /** OK on a character: its title in its app; if the app won't take the link, the app itself. */
-    private void openWatchlistItem(Watchlist.Item item) {
-        if (!item.uri.isEmpty()) {
+    /**
+     * OK on a character, or the mood deck's pick: its title in its app; if the app won't take the link, the app itself.
+     */
+    private void openTitle(String packageName, String uri, String component, int flags, Map<String, String> extras) {
+        if (!uri.isEmpty()) {
             // A theme's flags replace the default: Netflix keeps a link through its profile question only when started
             // in a fresh task (new task, clear task), with its "source" extra.
-            Intent view = new Intent(Intent.ACTION_VIEW, Uri.parse(item.uri))
-                    .addFlags(item.flags != 0 ? item.flags | Intent.FLAG_ACTIVITY_NEW_TASK : Intent.FLAG_ACTIVITY_NEW_TASK);
-            for (Map.Entry<String, String> e : item.extras.entrySet()) view.putExtra(e.getKey(), e.getValue());
-            ComponentName c = item.component == null ? null : ComponentName.unflattenFromString(item.component);
+            Intent view = new Intent(Intent.ACTION_VIEW, Uri.parse(uri))
+                    .addFlags(flags != 0 ? flags | Intent.FLAG_ACTIVITY_NEW_TASK : Intent.FLAG_ACTIVITY_NEW_TASK);
+            for (Map.Entry<String, String> e : extras.entrySet()) view.putExtra(e.getKey(), e.getValue());
+            ComponentName c = component == null ? null : ComponentName.unflattenFromString(component);
             if (c != null) view.setComponent(c);
-            else if (!item.packageName.isEmpty()) view.setPackage(item.packageName);
+            else if (!packageName.isEmpty()) view.setPackage(packageName);
             try {
                 startActivity(view);
                 return;
@@ -2815,8 +2876,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 // falls through to the app itself
             }
         }
-        Intent launch = item.packageName.isEmpty() ? null : getPackageManager().getLeanbackLaunchIntentForPackage(item.packageName);
-        if (launch == null && !item.packageName.isEmpty()) launch = getPackageManager().getLaunchIntentForPackage(item.packageName);
+        Intent launch = packageName.isEmpty() ? null : getPackageManager().getLeanbackLaunchIntentForPackage(packageName);
+        if (launch == null && !packageName.isEmpty()) launch = getPackageManager().getLaunchIntentForPackage(packageName);
         if (launch != null) open(launch);
         else Toast.makeText(this, R.string.not_available, Toast.LENGTH_SHORT).show();
     }

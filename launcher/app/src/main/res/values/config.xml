@@ -445,4 +445,11 @@
          in the theme's watchlist/ folder at their final size; the TV only draws them. Optional "watchlist_heading" is a
          small label over the section. Off, nothing is read or drawn. -->
     <bool name="watchlist">false</bool>
+    <!-- Mood deck under the watchlist (false, default). A theme sets "mood_deck": true together with "mood_deck_moods"
+         and "mood_deck_titles", which a tool such as TV Studio writes from the watchlist: a card per mood, Down from any
+         watchlist page. Left throws the card away for the next mood, Right or OK spins a reel of its posters that lands
+         on one title at random and opens it after a three-second countdown; Up goes back to the watchlist. The posters
+         and darkened backdrops sit in the theme's moods/ folder; the TV only draws them, and only the ones on screen.
+         Optional "mood_deck_heading" is the line above the cards. Needs the watchlist; off, nothing is read or drawn. -->
+    <bool name="mood_deck">false</bool>
 </resources>

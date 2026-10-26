@@ -45,11 +45,12 @@ public class WatchlistTest {
     }
 
     @Test
-    public void upGoesHomeAndDownDoesNothing() {
+    public void upGoesHomeAndDownGoesBelow() {
         List<Watchlist.Item> l = lineup();
         assertEquals(Watchlist.EXIT, Watchlist.move(l, 0, Watchlist.Direction.UP));
         assertEquals(Watchlist.EXIT, Watchlist.move(l, 3, Watchlist.Direction.UP));
-        assertEquals(3, Watchlist.move(l, 3, Watchlist.Direction.DOWN));
+        assertEquals(Watchlist.BELOW, Watchlist.move(l, 3, Watchlist.Direction.DOWN));
+        assertEquals("from the second page too", Watchlist.BELOW, Watchlist.move(l, 8, Watchlist.Direction.DOWN));
     }
 
     @Test

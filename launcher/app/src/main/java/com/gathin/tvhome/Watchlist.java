@@ -111,20 +111,23 @@ final class Watchlist {
         return i >= 0 ? i : nearest(items, 0, x);
     }
 
-    /** Result of a move: the new selection, or EXIT for "back up to the dock". Unchanged means the key did nothing. */
-    static final int EXIT = -2;
+    /**
+     * Result of a move: the new selection, EXIT for "back up to the dock", or BELOW for "down to what is under the lineup"
+     * (the mood deck, when there is one). Unchanged means the key did nothing.
+     */
+    static final int EXIT = -2, BELOW = -3;
 
     enum Direction { LEFT, RIGHT, UP, DOWN }
 
     /**
      * Left and Right go to the next character across the screen, whichever row it is in; past the page's last one Right
      * goes on to the next page's first, and Left before the first back to the previous page's last. Up goes back to the
-     * dock; Down does nothing.
+     * dock; Down goes below, from any page.
      */
     static int move(List<Item> items, int selected, Direction direction) {
         if (direction == Direction.UP) return EXIT;
         if (selected < 0 || selected >= items.size()) return items.isEmpty() ? EXIT : entry(items, 0, 0.5f);
-        if (direction == Direction.DOWN) return selected;
+        if (direction == Direction.DOWN) return BELOW;
         int page = items.get(selected).page;
         List<Integer> here = onPage(items, page);
         int at = here.indexOf(selected);

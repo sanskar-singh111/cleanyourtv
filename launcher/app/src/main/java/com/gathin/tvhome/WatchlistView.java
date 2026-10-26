@@ -44,6 +44,8 @@ final class WatchlistView extends View {
         /** Up from the top row, or Back: scroll back to the dock. */
         void onWatchlistExit();
         void onWatchlistOpen(Watchlist.Item item);
+        /** Down from any page: to the mood deck if there is one (true), else nothing happens. */
+        boolean onWatchlistDown();
     }
 
     private static final long SELECT_MS = 240, SCENE_MS = 450, SLIDE_MS = 420;
@@ -299,6 +301,9 @@ final class WatchlistView extends View {
         if (next == Watchlist.EXIT) {
             playSoundEffect(SoundEffectConstants.NAVIGATION_UP);
             listener.onWatchlistExit();
+        } else if (next == Watchlist.BELOW) {
+            // The page and the character stay as they are, for Up from the deck.
+            if (listener.onWatchlistDown()) playSoundEffect(SoundEffectConstants.NAVIGATION_DOWN);
         } else if (next != selected) {
             playSoundEffect(soundFor(d));
             select(next, true);
