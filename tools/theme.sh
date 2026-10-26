@@ -6,6 +6,8 @@
 #
 # Usage: TV_HOST=192.168.1.50 tools/theme.sh themes/aurora
 #        TV_HOST=192.168.1.50 tools/theme.sh --reset        # remove the overlay, back to config.xml
+# For a big theme pushed again and again, tools/theme_sync.py does the same over one connection and sends only the
+# files that changed (it uses these same commands; tests/test_theme_sync.py keeps them in step).
 set -euo pipefail
 # Resolve the theme folder against the caller's directory before moving into tools/.
 # Git Bash's pwd says /c/Users/..., which the Windows Python cannot open; pwd -W gives C:/Users/... (as in disable.sh).
