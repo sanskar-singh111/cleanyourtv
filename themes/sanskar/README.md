@@ -12,6 +12,7 @@ Everything personal lives in this folder, so a change here needs no rebuild of t
 | Dock logos | `logos/` (white on a transparent background, PNG) |
 | Watchlist characters (made by TV Studio, kept out of git) | `watchlist/` |
 | Mood deck posters and backdrops (made by TV Studio, kept out of git) | `moods/` |
+| Which moment each watchlist character gets when selected (my table; stays on the Mac) | `effects.json` |
 
 My original files stay in `~/Code/TV/tv-assets`; only the copies here are used.
 
