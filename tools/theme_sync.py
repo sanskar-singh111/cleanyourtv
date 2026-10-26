@@ -112,7 +112,7 @@ def send(dev, local, remote):
     want = md5(local)
     try:
         dev.push(local, remote, transport_timeout_s=300.0, read_timeout_s=300.0)
-        if dev.shell(f"md5sum {remote}").split()[:1] == [want]:
+        if dev.shell(f"md5sum {remote}", read_timeout_s=60.0).split()[:1] == [want]:
             return
     except Exception:   # some TVs' adbd refuse sync pushes: fall back to the shell, as theme.sh does for pictures
         pass
@@ -182,16 +182,19 @@ def main():
         if remote is None:
             # The TV's copy is unknown: clear each picture folder as theme.sh does, so nothing stale stays behind.
             folders = sorted({n.split("/")[0] for n in local if "/" in n} | {"wallpapers"})
-            dev.shell("; ".join(f"rm -f {DIR}/{f}/* 2>/dev/null; content delete --uri {URI}/{f} 2>/dev/null" for f in folders))
+            dev.shell("; ".join(f"rm -f {DIR}/{f}/* 2>/dev/null; content delete --uri {URI}/{f} 2>/dev/null" for f in folders),
+                      read_timeout_s=max(30.0, 3.0 * len(folders)))
         say(event="plan", send=len(changed), delete=len(stale), known=remote is not None)
         folders = sorted({n.split("/")[0] for n in changed if "/" in n})
         dev.shell(f"mkdir -p {DIR}" + "".join(f" {DIR}/{f}" for f in folders) + " 2>/dev/null")
         for i, name in enumerate(changed):
             say(event="progress", done=i, total=len(changed), file=name)
             send(dev, local[name], stage(name))
-            dev.shell(put(name))
+            # The provider copies the file over: a big picture (a 4K PNG) takes longer than the usual 10 s read.
+            dev.shell(put(name), read_timeout_s=max(30.0, os.path.getsize(local[name]) / 1e6 * 4.0))
         if stale:
-            dev.shell("; ".join(delete(n) for n in stale))
+            # Each `content delete` starts a process (about a second on a TV): give the whole batch its time.
+            dev.shell("; ".join(delete(n) for n in stale), read_timeout_s=max(30.0, 3.0 * len(stale)))
         if changed and remote is not None:
             # The TV's copy now matches, file by file.
             after = remote_sums(dev) or {}
