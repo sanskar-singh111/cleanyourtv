@@ -57,3 +57,7 @@ the rules. Keys from before this rule are on its wanted list; a screenshot for o
 | `watchlist` | <img src="switches/watchlist.jpg" width="320" alt="watchlist on the preview emulator, drawn with plain stand-in figures (no film artwork): the second character selected in colour with its glow, app logo and title, the rest dimmed"> |
 | `watchlist_items` | <img src="switches/watchlist.jpg" width="320" alt="watchlist_items: seven stand-in figures in two rows, a page of the lineup"> |
 | `watchlist_heading` | <img src="switches/watchlist.jpg" width="320" alt="watchlist_heading: the small Watchlist label at the top left of the lineup"> |
+| `mood_deck` | <img src="switches/mood_deck.jpg" width="320" alt="mood_deck on the preview emulator, drawn with stand-in posters (no film artwork): the Comedy card with three posters fanned out, the next two moods peeking behind it, over a dark black-and-white backdrop"> |
+| `mood_deck_moods` | <img src="switches/mood_deck_moods.jpg" width="320" alt="mood_deck_moods on the preview emulator (stand-in posters): Left throws the Comedy card off to the left, tilted and fading, as the Sci-fi card comes up"> |
+| `mood_deck_titles` | <img src="switches/mood_deck_titles.jpg" width="320" alt="mood_deck_titles on the preview emulator (stand-in posters): the reel has landed on Title 6, with Opening in 3 and a bar in the mood's colour"> |
+| `mood_deck_heading` | <img src="switches/mood_deck.jpg" width="320" alt="mood_deck_heading: Don't have time to browse? above the cards"> |

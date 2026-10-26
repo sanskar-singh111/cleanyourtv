@@ -20,11 +20,12 @@ traces/
 launcher/hs_err_pid*.log
 launcher/replay_pid*.log
 
-# Sanskar's theme pictures stay on this Mac only (artwork: wallpaper, app logos, TMDB characters, slideshow).
+# Sanskar's theme pictures stay on this Mac only (artwork: wallpaper, app logos, TMDB characters, mood deck posters, slideshow).
 # config.json and README.md in themes/sanskar are kept in git.
 themes/sanskar/wallpaper/
 themes/sanskar/logos/
 themes/sanskar/watchlist/
+themes/sanskar/moods/
 themes/sanskar/screensaver/
 themes/sanskar/screenshot-tv.jpg
 themes/sanskar/**/*.png
