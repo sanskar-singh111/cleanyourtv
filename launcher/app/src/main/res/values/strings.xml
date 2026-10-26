@@ -155,8 +155,8 @@
     </plurals>
     <!-- After the reel lands, before the title opens by itself: "Opening in 3…". -->
     <string name="mood_opening">Opening in %1$d…</string>
-    <string name="mood_keys">◀  Nope        Spin  ▶  or  OK</string>
-    <string name="mood_keys_one">Spin  ▶  or  OK</string>
-    <string name="mood_keys_spinning">◀  Stop</string>
-    <string name="mood_keys_countdown">OK  Open now        ▶  Spin again        ◀  Cancel</string>
+    <string name="mood_keys">◀ Nope\u2003\u2003\u2003Spin ▶ or OK</string>
+    <string name="mood_keys_one">Spin ▶ or OK</string>
+    <string name="mood_keys_spinning">◀ Stop</string>
+    <string name="mood_keys_countdown">OK Open now\u2003\u2003\u2003▶ Spin again\u2003\u2003\u2003◀ Cancel</string>
 </resources>

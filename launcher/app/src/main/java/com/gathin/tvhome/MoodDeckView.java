@@ -533,8 +533,8 @@ final class MoodDeckView extends View {
         if (glow != glowColor || glowPaint.getShader() == null) {
             // Made again only when the colour changes (during a swipe), never while the deck is at rest.
             glowColor = glow;
-            glowPaint.setShader(new RadialGradient(cx, cy - 0.02f * h, 0.78f * h,
-                    new int[]{withAlpha(glow, 0x3A), withAlpha(glow, 0x14), withAlpha(glow, 0)}, new float[]{0f, 0.45f, 1f},
+            glowPaint.setShader(new RadialGradient(cx, cy - 0.02f * h, 0.62f * h,
+                    new int[]{withAlpha(glow, 0x2E), withAlpha(glow, 0x0C), withAlpha(glow, 0)}, new float[]{0f, 0.4f, 1f},
                     Shader.TileMode.CLAMP));
         }
         canvas.drawRect(0, 0, w, h, glowPaint);
@@ -598,7 +598,12 @@ final class MoodDeckView extends View {
             if (show < 1f) drawFan(canvas, m, Math.round(ca * (1f - show)));
             if (show > 0f) drawReel(canvas, m, Math.round(ca * show), h);
             float nameY = -ch / 2f + 0.45f * h;
-            String name = TextUtils.ellipsize(m.name, namePaint, cw - 0.06f * h, TextUtils.TruncateAt.END).toString();
+            // A long name gets smaller (down to two thirds) before it is shortened.
+            float room = cw - 0.07f * h, size = 0.058f * h;
+            namePaint.setTextSize(size);
+            float nw = namePaint.measureText(m.name);
+            if (nw > room) namePaint.setTextSize(Math.max(size * 2f / 3f, size * room / nw));
+            String name = TextUtils.ellipsize(m.name, namePaint, room, TextUtils.TruncateAt.END).toString();
             namePaint.setAlpha(ca);
             canvas.drawText(name, -namePaint.measureText(name) / 2f, nameY, namePaint);
             String count = getResources().getQuantityString(R.plurals.mood_titles, m.titles.size(), m.titles.size());

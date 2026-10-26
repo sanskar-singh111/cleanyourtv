@@ -1440,6 +1440,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
+        if (hasFocus && focusBelow()) return;
         if (hasFocus) {
             startPendingSettingsReorder();
             if (libraryFocusPending && appLibrary == null) focusLibrary();
@@ -2783,6 +2784,14 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         return true;
     }
 
+    /** While the page is scrolled down, the lineup or the deck keeps the focus; false when Home shows the dock. */
+    private boolean focusBelow() {
+        if (!inWatchlist) return false;
+        View below = inDeck ? moodDeckView : watchlistView;
+        if (!below.isFocused()) below.requestFocus();
+        return true;
+    }
+
     /** Up from the deck: back to the lineup on the page and character it was left on. */
     private void exitDeck() {
         if (!inDeck) return;
@@ -3002,6 +3011,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     }
 
     private void focusTile(int position) {
+        // Scrolled down to the lineup or the deck (back from a title opened there, say): the focus stays on screen.
+        if (focusBelow()) return;
         libraryFocusPending = false;
         cancelPendingFocusScroll();
         if (adapter.appCount() == 0) {
