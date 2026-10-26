@@ -49,6 +49,8 @@ final class WatchlistView extends View {
     }
 
     private static final long SELECT_MS = 240, SCENE_MS = 450, SLIDE_MS = 420;
+    /** How long the page takes to scroll down from the dock, before the first character's effect plays. */
+    private static final long ENTER_MS = 460;
     private static final float GROW = 0.06f;
 
     private final List<Watchlist.Item> items;
@@ -83,14 +85,16 @@ final class WatchlistView extends View {
     private int slideDirection = 1;
     private File scene, previousScene;
     private float sceneMix = 1f;
-    private ValueAnimator selectAnimator, sceneAnimator, slideAnimator;
+    private ValueAnimator selectAnimator, sceneAnimator, slideAnimator, effectAnimator;
+    /** watchlist_effects: the selected character's moment; null when the switch is off. */
+    private final WatchlistEffect effect;
     /** Bumped on every page change and release, so a decode that finishes late doesn't bring back unwanted pictures. */
     private int loadGeneration;
     private boolean logosLoaded;
     private int bottomShadeHeight = -1;
 
     WatchlistView(Context context, List<Watchlist.Item> items, Map<String, File> logos, String heading,
-                  Typeface titleFont, Typeface headingFont, Listener listener) {
+                  Typeface titleFont, Typeface headingFont, boolean effects, Listener listener) {
         super(context);
         this.items = Watchlist.usable(items);
         this.logos = logos;
@@ -105,6 +109,7 @@ final class WatchlistView extends View {
         }
         pages = Watchlist.pageCount(this.items);
         density = context.getResources().getDisplayMetrics().density;
+        effect = effects ? new WatchlistEffect(density) : null;
         setFocusable(true);
         setFocusableInTouchMode(false);
         setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
@@ -174,6 +179,7 @@ final class WatchlistView extends View {
     /** Lets go of every picture (Home is in the background and memory is short); {@link #load()} brings them back. */
     void release() {
         loadGeneration++;
+        stopEffect();
         for (int i = 0; i < figures.length; i++) { figures[i] = null; glows[i] = null; }
         scenes.clear();
         scene = previousScene = null;
@@ -206,8 +212,11 @@ final class WatchlistView extends View {
     private void select(int index, boolean animate) {
         if (index < 0 || index >= items.size()) return;
         int itemPage = items.get(index).page;
-        if (itemPage != page) slideTo(itemPage, animate);
+        boolean turnsPage = itemPage != page;
+        if (turnsPage) slideTo(itemPage, animate);
         selected = index;
+        // Down from the dock waits for the page to scroll in; a new page waits for its slide.
+        playEffect(index, !animate ? ENTER_MS : turnsPage ? SLIDE_MS : 0);
         if (selectAnimator != null) selectAnimator.cancel();
         if (!animate) {
             for (int i = 0; i < selectedness.length; i++) selectedness[i] = i == index ? 1f : 0f;
@@ -228,6 +237,44 @@ final class WatchlistView extends View {
         });
         selectAnimator.start();
         showScene(items.get(index).scene, true);
+    }
+
+    /** Plays the item's effect once, from the start, after `delay` ms; any effect still running stops. */
+    private void playEffect(int index, long delay) {
+        if (effect == null) return;
+        stopEffect();
+        String id = items.get(index).effect;
+        if (id == null) return;
+        effect.start(id, android.os.SystemClock.uptimeMillis() * 31 + index);
+        effect.stop();   // nothing shows until the animator's first frame
+        effectAnimator = ValueAnimator.ofFloat(0f, 1f).setDuration(effect.duration());
+        effectAnimator.setStartDelay(delay);
+        effectAnimator.setInterpolator(null);   // linear: t is the effect's own clock
+        effectAnimator.addUpdateListener(a -> {
+            effect.at(a.getAnimatedFraction() * effect.duration());
+            invalidate();
+        });
+        effectAnimator.addListener(new android.animation.AnimatorListenerAdapter() {
+            @Override public void onAnimationEnd(android.animation.Animator a) {
+                effect.stop();
+                invalidate();
+            }
+        });
+        effectAnimator.start();
+    }
+
+    private void stopEffect() {
+        if (effectAnimator != null) {
+            effectAnimator.removeAllListeners();
+            effectAnimator.cancel();
+            effectAnimator = null;
+        }
+        if (effect != null) effect.stop();
+    }
+
+    /** True while the selected character's effect is on screen (never mid-slide). */
+    private boolean effectShowing() {
+        return effect != null && effect.running() && selected >= 0 && slide >= 1f;
     }
 
     /** The page moves sideways: the new one comes in from the right going forward, from the left going back. */
@@ -371,6 +418,7 @@ final class WatchlistView extends View {
         }
         // Legs fade into black at the bottom edge, for both rows.
         canvas.drawRect(0, 0, w, h, shadePaint);
+        if (effectShowing()) effect.drawFront(canvas, figures[selected], w, h);
         drawDots(canvas, w, h);
 
         if (!heading.isEmpty()) {
@@ -384,7 +432,15 @@ final class WatchlistView extends View {
             canvas.save();
             canvas.translate(dx, 0f);
         }
-        for (int i : Watchlist.drawOrder(items, p, selected)) drawFigure(canvas, i, w, h);
+        for (int i : Watchlist.drawOrder(items, p, selected)) {
+            if (i == selected && p == page && effectShowing()) {
+                Watchlist.Item it = items.get(i);
+                drawnRect(i, w, h, rect);
+                effect.place(rect, it.headX, it.headY, it.headSize);
+                effect.drawBehind(canvas, figures[i], w, h);
+            }
+            drawFigure(canvas, i, w, h);
+        }
         if (dx != 0f) canvas.restore();
     }
 
@@ -418,15 +474,27 @@ final class WatchlistView extends View {
         out.set(cx - dw / 2f, bottom - dh, cx + dw / 2f, bottom);
     }
 
+    /** Where item i is drawn this frame, with the selected one's grow. */
+    private void drawnRect(int i, int w, int h, RectF out) {
+        figureRect(i, w, h, out);
+        float grow = 1f + GROW * selectedness[i];
+        float cx = out.centerX(), bottom = out.bottom;
+        float dw = out.width() * grow, dh = out.height() * grow;
+        out.set(cx - dw / 2f, bottom - dh, cx + dw / 2f, bottom);
+    }
+
     private void drawFigure(Canvas canvas, int i, int w, int h) {
         Bitmap b = figures[i];
         if (b == null) return;
         float s = selectedness[i];
-        figureRect(i, w, h, rect);
-        float grow = 1f + GROW * s;
-        float cx = rect.centerX(), bottom = rect.bottom;
-        float dw = rect.width() * grow, dh = rect.height() * grow;
-        rect.set(cx - dw / 2f, bottom - dh, cx + dw / 2f, bottom);
+        drawnRect(i, w, h, rect);
+        float cx = rect.centerX();
+        float dh = rect.height();
+        boolean moving = i == selected && effectShowing();
+        if (moving) {
+            canvas.save();
+            effect.move(canvas);
+        }
 
         Bitmap g = glows[i];
         if (g != null && s > 0.01f) {
@@ -448,6 +516,7 @@ final class WatchlistView extends View {
         // A filter per frame only while a selection animates; the settled ones are reused.
         figurePaint.setColorFilter(filterFor(s));
         canvas.drawBitmap(b, null, rect, figurePaint);
+        if (moving) canvas.restore();
     }
 
     private final ColorMatrixColorFilter grey = filter(0f), colour = filter(1f);

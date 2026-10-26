@@ -445,6 +445,12 @@
          in the theme's watchlist/ folder at their final size; the TV only draws them. Optional "watchlist_heading" is a
          small label over the section. Off, nothing is read or drawn. -->
     <bool name="watchlist">false</bool>
+    <!-- Watchlist effects (false, default). A theme sets "watchlist_effects": true and gives watchlist_items an "effect"
+         (spider_sense, speedster, blood, blue_crystals, cigar_smoke, the_numbers, coffee_steam, light_flicker,
+         scope_glint, glitch, police_lights, bounce, shake or spotlight) and a "head" ([x, y, size] in the picture):
+         each character then gets a short moment of about a second when selected, drawn with simple shapes. Needs the
+         watchlist; off, nothing is read or drawn. -->
+    <bool name="watchlist_effects">false</bool>
     <!-- Mood deck under the watchlist (false, default). A theme sets "mood_deck": true together with "mood_deck_moods"
          and "mood_deck_titles", which a tool such as TV Studio writes from the watchlist: a card per mood, Down from any
          watchlist page. Left throws the card away for the next mood, Right or OK spins a reel of its posters that lands

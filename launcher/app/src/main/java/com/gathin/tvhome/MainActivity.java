@@ -2745,7 +2745,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     /** watchlist: the lineup sits under the page, a screen's height down, until Down from the dock scrolls to it. */
     private void setUpWatchlist(Config cfg) {
         WatchlistView view = new WatchlistView(this, cfg.watchlistItems, cfg.dockLogos, cfg.watchlistHeading,
-                UiFont.get(this, R.string.font_light), UiFont.get(this, R.string.font_medium), new WatchlistView.Listener() {
+                UiFont.get(this, R.string.font_light), UiFont.get(this, R.string.font_medium), cfg.watchlistEffects,
+                new WatchlistView.Listener() {
             @Override public void onWatchlistExit() { exitWatchlist(true); }
             @Override public void onWatchlistOpen(Watchlist.Item item) {
                 openTitle(item.packageName, item.uri, item.component, item.flags, item.extras);

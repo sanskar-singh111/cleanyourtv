@@ -258,6 +258,8 @@ final class Config {
     final boolean watchlist;
     final List<Watchlist.Item> watchlistItems;
     final String watchlistHeading;
+    /** watchlist_effects: each character's small moment when it is selected (config.xml watchlist_effects). */
+    final boolean watchlistEffects;
     /** The mood deck under the watchlist (config.xml mood_deck), its moods, the titles they hold and its heading. */
     final boolean moodDeck;
     final List<MoodDeck.Mood> moodDeckMoods;
@@ -283,7 +285,7 @@ final class Config {
                    boolean taglineCentered, int dockBottomRoom, boolean moreAppsNames, boolean taglineOnFocus,
                    int glowStrength, int glowSize, int focusGrow, int focusGrowMs, String screensaver, int screensaverDim,
                    int screensaverFadeMs, int screensaverSlideMinutes, List<File> screensaverImages,
-                   boolean watchlist, List<Watchlist.Item> watchlistItems, String watchlistHeading,
+                   boolean watchlist, List<Watchlist.Item> watchlistItems, String watchlistHeading, boolean watchlistEffects,
                    boolean moodDeck, MoodDeckData moodDeckData, String moodDeckHeading) {
         this.watchlist = watchlist && !watchlistItems.isEmpty();
         this.moodDeckMoods = Collections.unmodifiableList(MoodDeck.usable(moodDeckData.moods));
@@ -292,6 +294,7 @@ final class Config {
         this.moodDeckHeading = moodDeckHeading == null ? "" : moodDeckHeading;
         this.watchlistItems = Collections.unmodifiableList(watchlistItems);
         this.watchlistHeading = watchlistHeading == null ? "" : watchlistHeading;
+        this.watchlistEffects = watchlistEffects && this.watchlist;
         this.glowStrength = glowStrength;
         this.glowSize = glowSize;
         this.focusGrow = focusGrow;
@@ -514,6 +517,7 @@ final class Config {
         int screensaverSlideMinutes = res.getInteger(R.integer.screensaver_slide_minutes);
         boolean watchlist = res.getBoolean(R.bool.watchlist);
         String watchlistHeading = "";
+        boolean watchlistEffects = res.getBoolean(R.bool.watchlist_effects);
         boolean moodDeck = res.getBoolean(R.bool.mood_deck);
         String moodDeckHeading = "";
         boolean applied = false;
@@ -623,6 +627,7 @@ final class Config {
             screensaverSlideMinutes = integer(json, "screensaver_slide_minutes", screensaverSlideMinutes, 1, 60);
             watchlist = bool(json, "watchlist", watchlist);
             watchlistHeading = string(json, "watchlist_heading", watchlistHeading);
+            watchlistEffects = bool(json, "watchlist_effects", watchlistEffects);
             moodDeck = bool(json, "mood_deck", moodDeck);
             moodDeckHeading = string(json, "mood_deck_heading", moodDeckHeading);
         }
@@ -693,7 +698,8 @@ final class Config {
                 dir != null && Screensaver.SLIDESHOW.equals(Screensaver.mode(screensaver))
                         ? WallpaperRotation.images(new File(dir, Screensaver.FOLDER)) : new ArrayList<>(),
                 // Nothing is read unless the watchlist is on.
-                watchlist, watchlist && json != null ? watchlistItems(json, dir) : new ArrayList<>(), watchlistHeading,
+                watchlist, watchlist && json != null ? watchlistItems(json, dir, watchlistEffects) : new ArrayList<>(), watchlistHeading,
+                watchlistEffects,
                 // Nor of the deck unless it and the watchlist are on.
                 moodDeck, moodDeck && watchlist && json != null ? moodDeck(json, dir) : new MoodDeckData(), moodDeckHeading);
     }
@@ -762,11 +768,13 @@ final class Config {
      * {@code "watchlist_items": [{"title": "Breaking Bad", "image": "watchlist/tv-1396.png", "glow": "watchlist/tv-1396-glow.png",
      * "scene": "watchlist/tv-1396-bg.jpg", "color": "#2CD93A", "page": 0, "row": 0, "x": 0.5, "bottom": 0.84, "height": 0.5,
      * "package": "com.netflix.ninja", "uri": "https://www.netflix.com/title/70143836",
-     * "component": "com.netflix.ninja/.MainActivity", "flags": 276856832, "extras": {"source": "30"}, "app": "Netflix"}]}.
+     * "component": "com.netflix.ninja/.MainActivity", "flags": 276856832, "extras": {"source": "30"}, "app": "Netflix",
+     * "effect": "blood", "head": [0.49, 0.19, 0.15]}]}.
      * An item without its picture is left out on its own; row 0 is the back row, 1 the front; flags are the intent's
-     * (a number, or text such as "0x10808000").
+     * (a number, or text such as "0x10808000"). "effect" and "head" (the head's centre across and down the picture and
+     * its height, 0 to 1) are read only with watchlist_effects on.
      */
-    private static List<Watchlist.Item> watchlistItems(JSONObject json, File dir) {
+    private static List<Watchlist.Item> watchlistItems(JSONObject json, File dir, boolean effects) {
         List<Watchlist.Item> out = new ArrayList<>();
         JSONArray list = json.optJSONArray("watchlist_items");
         if (list == null) return out;
@@ -793,7 +801,19 @@ final class Config {
                     o.optInt("row", Watchlist.FRONT), o.optInt("page", 0), (float) o.optDouble("x", 0.5),
                     (float) o.optDouble("bottom", 1.0), (float) o.optDouble("height", 0.5), o.optString("package", ""),
                     o.optString("uri", ""), component.isEmpty() ? null : component, intentFlags(o.opt("flags")), extras,
-                    o.optString("app", "")));
+                    o.optString("app", ""), effects ? o.optString("effect", null) : null, effects ? head(o.optJSONArray("head")) : null));
+        }
+        return out;
+    }
+
+    /** A watchlist item's "head": [x, y, size], or null when it isn't three numbers. */
+    private static float[] head(JSONArray a) {
+        if (a == null || a.length() < 3) return null;
+        float[] out = new float[3];
+        for (int i = 0; i < 3; i++) {
+            double v = a.optDouble(i, Double.NaN);
+            if (Double.isNaN(v)) return null;
+            out[i] = (float) v;
         }
         return out;
     }

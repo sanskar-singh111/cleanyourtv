@@ -42,9 +42,20 @@ final class Watchlist {
         final Map<String, String> extras;
         /** The app's name, shown when the theme has no logo for it. */
         final String appName;
+        /** The small moment played when it is selected (watchlist_effects), or null for none. */
+        final String effect;
+        /** Where the head is in the figure picture: its centre across and down, and its height, all 0 to 1. */
+        final float headX, headY, headSize;
 
         Item(String title, File image, File glow, File scene, int color, int row, int page, float x, float bottom, float height,
              String packageName, String uri, String component, int flags, Map<String, String> extras, String appName) {
+            this(title, image, glow, scene, color, row, page, x, bottom, height, packageName, uri, component, flags, extras,
+                    appName, null, null);
+        }
+
+        Item(String title, File image, File glow, File scene, int color, int row, int page, float x, float bottom, float height,
+             String packageName, String uri, String component, int flags, Map<String, String> extras, String appName,
+             String effect, float[] head) {
             this.title = title == null ? "" : title;
             this.image = image;
             this.glow = glow;
@@ -61,6 +72,12 @@ final class Watchlist {
             this.flags = flags;
             this.extras = extras == null ? Collections.emptyMap() : Collections.unmodifiableMap(extras);
             this.appName = appName == null ? "" : appName;
+            this.effect = WatchlistEffect.known(effect);
+            // Without a head from the computer: a guess near the top, as most cut-outs stand.
+            boolean hasHead = head != null && head.length >= 3;
+            this.headX = hasHead ? clamp(head[0], 0f, 1f) : 0.5f;
+            this.headY = hasHead ? clamp(head[1], 0f, 1f) : 0.12f;
+            this.headSize = hasHead ? clamp(head[2], 0.02f, 0.6f) : 0.14f;
         }
     }
 
