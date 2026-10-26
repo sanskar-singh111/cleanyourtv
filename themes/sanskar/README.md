@@ -10,9 +10,14 @@ Everything personal lives in this folder, so a change here needs no rebuild of t
 | Settings, dock order, taglines, colours, weather city | `config.json` |
 | Wallpaper | `wallpaper/wallpaper.png` |
 | Dock logos | `logos/` (white on a transparent background, PNG) |
-| Watchlist pictures, later | `watchlist/` |
+| Watchlist characters (made by TV Studio, kept out of git) | `watchlist/` |
+| Mood deck posters and backdrops (made by TV Studio, kept out of git) | `moods/` |
 
 My original files stay in `~/Code/TV/tv-assets`; only the copies here are used.
+
+Under the dock is my watchlist, and under that the mood deck, "Don't have time to browse?": Left for the next mood,
+Right or OK to spin and open a title, Up back to the watchlist. TV Studio fills both from my TMDB list on every sync;
+its Mood cards page is where I change a title's moods or mark it can't play (Prime Video is marked, no membership).
 
 ## Push a change to the TV
 
