@@ -107,15 +107,24 @@ def remote_sums(dev):
     return sums
 
 
-def send(dev, local, remote):
-    """The file to `remote` with ADB's file sync, checked by md5; base64 chunks through the shell if that fails."""
+def send(dev, local, remote, reconnect):
+    """The file to `remote` with ADB's file sync, checked by md5; base64 chunks through the shell if that fails.
+    Returns the connection to go on with: a new one from `reconnect()` when the sync push broke the old one."""
     want = md5(local)
+    # A stalled push is given up on: some adbd builds (the Android TV emulator's, for one) never answer a sync push of
+    # more than about 1 MB. About 1 MB/s is the slowest TV seen, so this is plenty for a push that is moving.
+    stall = max(20.0, os.path.getsize(local) / 1e6 * 4.0)
     try:
-        dev.push(local, remote, transport_timeout_s=300.0, read_timeout_s=300.0)
+        dev.push(local, remote, transport_timeout_s=stall, read_timeout_s=stall)
         if dev.shell(f"md5sum {remote}", read_timeout_s=60.0).split()[:1] == [want]:
-            return
+            return dev
     except Exception:   # some TVs' adbd refuse sync pushes: fall back to the shell, as theme.sh does for pictures
-        pass
+        # The failed push leaves the connection mid-stream: start a new one for the shell.
+        try:
+            dev.close()
+        except Exception:
+            pass
+        dev = reconnect()
     with open(local, "rb") as f:
         data = f.read()
     chunk = min(CHUNK, getattr(dev, "max_chunk_size", 4096) * 3 // 4 - 64)
@@ -130,6 +139,7 @@ def send(dev, local, remote):
     if got != [want]:
         dev.shell(f"rm -f {remote}")
         raise RuntimeError(f"{os.path.basename(local)} arrived damaged")
+    return dev
 
 
 def plan(local, remote, full=False):
@@ -189,7 +199,7 @@ def main():
         dev.shell(f"mkdir -p {DIR}" + "".join(f" {DIR}/{f}" for f in folders) + " 2>/dev/null")
         for i, name in enumerate(changed):
             say(event="progress", done=i, total=len(changed), file=name)
-            send(dev, local[name], stage(name))
+            dev = send(dev, local[name], stage(name), tv.connect)
             # The provider copies the file over: a big picture (a 4K PNG) takes longer than the usual 10 s read.
             dev.shell(put(name), read_timeout_s=max(30.0, os.path.getsize(local[name]) / 1e6 * 4.0))
         if stale:

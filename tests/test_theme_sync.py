@@ -85,3 +85,45 @@ class PlanTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class StalledPushTest(unittest.TestCase):
+    """A sync push that never answers (the Android TV emulator's adbd past about 1 MB): base64 on a new connection."""
+
+    class Broken:
+        closed = False
+
+        def push(self, *a, **k):
+            raise TimeoutError("push stalled")
+
+        def shell(self, *a, **k):
+            raise AssertionError("the broken connection must not be used again")
+
+        def close(self):
+            self.closed = True
+
+    class Fresh:
+        def __init__(self, data):
+            self.parts, self.data = [], data
+
+        def shell(self, cmd, **k):
+            if cmd.startswith("echo '"):
+                piece, _, rest = cmd[6:].partition("' >> ")
+                self.parts.append(piece)
+                return "ok" + rest.rsplit("echo ok", 1)[1]
+            if cmd.startswith("base64 -d"):
+                import base64
+                return hashlib.md5(b"".join(base64.b64decode(p) for p in self.parts)).hexdigest() + "  x"
+            return ""
+
+    def test_base64_on_a_new_connection(self):
+        data = bytes(range(256)) * 40
+        with tempfile.NamedTemporaryFile(delete=False) as f:
+            f.write(data)
+        broken, fresh = self.Broken(), self.Fresh(data)
+        try:
+            got = sync.send(broken, f.name, "/data/local/tmp/x", lambda: fresh)
+        finally:
+            Path(f.name).unlink()
+        self.assertIs(got, fresh)
+        self.assertTrue(broken.closed)
