@@ -271,6 +271,11 @@ final class Config {
     final List<MoodDeck.Mood> moodDeckMoods;
     final List<MoodDeck.Title> moodDeckTitles;
     final String moodDeckHeading;
+    /** mood_posters: Right or OK on a card opens a row of its posters; mood_watched: hold OK there for "I've watched it". */
+    final boolean moodPosters;
+    final boolean moodWatched;
+    /** mood_posters_heading: the line above the mood's name on the posters row; the deck's heading when empty. */
+    final String moodPostersHeading;
 
     private Config(List<String> dockApps, boolean fillDock, List<String> hiddenApps, List<String> libraryApps, String liveTvPackage,
                    String liveTvAction, String liveTvInputId, Map<String, String> launchActions, Map<String, String> appLabels,
@@ -292,12 +297,16 @@ final class Config {
                    int glowStrength, int glowSize, int focusGrow, int focusGrowMs, String screensaver, int screensaverDim,
                    int screensaverFadeMs, int screensaverSlideMinutes, List<File> screensaverImages,
                    boolean watchlist, List<Watchlist.Item> watchlistItems, String watchlistHeading, boolean watchlistEffects,
-                   boolean watchlistRemove, int watchlistRemoveHoldSeconds, boolean moodDeck, MoodDeckData moodDeckData, String moodDeckHeading) {
+                   boolean watchlistRemove, int watchlistRemoveHoldSeconds, boolean moodDeck, MoodDeckData moodDeckData, String moodDeckHeading,
+                   boolean moodPosters, boolean moodWatched, String moodPostersHeading) {
         this.watchlist = watchlist && !watchlistItems.isEmpty();
         this.moodDeckMoods = Collections.unmodifiableList(MoodDeck.usable(moodDeckData.moods));
         this.moodDeckTitles = Collections.unmodifiableList(moodDeckData.titles);
         this.moodDeck = moodDeck && this.watchlist && !this.moodDeckMoods.isEmpty();
         this.moodDeckHeading = moodDeckHeading == null ? "" : moodDeckHeading;
+        this.moodPosters = moodPosters && this.moodDeck;
+        this.moodWatched = moodWatched && this.moodPosters;
+        this.moodPostersHeading = moodPostersHeading == null || moodPostersHeading.isEmpty() ? this.moodDeckHeading : moodPostersHeading;
         this.watchlistItems = Collections.unmodifiableList(watchlistItems);
         this.watchlistHeading = watchlistHeading == null ? "" : watchlistHeading;
         this.watchlistEffects = watchlistEffects && this.watchlist;
@@ -530,6 +539,9 @@ final class Config {
         int watchlistRemoveHold = res.getInteger(R.integer.watchlist_remove_hold);
         boolean moodDeck = res.getBoolean(R.bool.mood_deck);
         String moodDeckHeading = "";
+        boolean moodPosters = res.getBoolean(R.bool.mood_posters);
+        boolean moodWatched = res.getBoolean(R.bool.mood_watched);
+        String moodPostersHeading = "";
         boolean applied = false;
 
         File dir = dir(ctx);
@@ -643,6 +655,9 @@ final class Config {
                     WatchlistRemovals.HOLD_MIN_S, WatchlistRemovals.HOLD_MAX_S);
             moodDeck = bool(json, "mood_deck", moodDeck);
             moodDeckHeading = string(json, "mood_deck_heading", moodDeckHeading);
+            moodPosters = bool(json, "mood_posters", moodPosters);
+            moodWatched = bool(json, "mood_watched", moodWatched);
+            moodPostersHeading = string(json, "mood_posters_heading", moodPostersHeading);
         }
         // A theme push or reset invalidates choices made on the TV. On first use, remember the
         // current theme without clearing choices from an older launcher version.
@@ -715,7 +730,8 @@ final class Config {
                 watchlistEffects, watchlistRemove,
                 clamp(watchlistRemoveHold, WatchlistRemovals.HOLD_MIN_S, WatchlistRemovals.HOLD_MAX_S),
                 // Nor of the deck unless it and the watchlist are on.
-                moodDeck, moodDeck && watchlist && json != null ? moodDeck(json, dir) : new MoodDeckData(), moodDeckHeading);
+                moodDeck, moodDeck && watchlist && json != null ? moodDeck(json, dir) : new MoodDeckData(), moodDeckHeading,
+                moodPosters, moodWatched, moodPostersHeading);
     }
 
     /** The deck as read from a theme: its titles, and its moods pointing at them by position. */
@@ -749,7 +765,7 @@ final class Config {
             byKey.put(key, out.titles.size());
             out.titles.add(new MoodDeck.Title(key, o.optString("title", ""), poster, themeFile(dir, o.optString("backdrop", null)),
                     o.optString("package", ""), uri, component.isEmpty() ? null : component, intentFlags(o.opt("flags")),
-                    textExtras(o.optJSONObject("extras")), o.optString("app", "")));
+                    textExtras(o.optJSONObject("extras")), o.optString("app", ""), o.optString("year", "")));
         }
         JSONArray moods = json.optJSONArray("mood_deck_moods");
         for (int i = 0; moods != null && i < moods.length() && out.moods.size() < MoodDeck.MAX_MOODS; i++) {

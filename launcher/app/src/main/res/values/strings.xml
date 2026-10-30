@@ -162,4 +162,12 @@
     <string name="mood_keys_one">Spin ▶ or OK</string>
     <string name="mood_keys_spinning">◀ Stop</string>
     <string name="mood_keys_countdown">OK Open now\u2003\u2003\u2003▶ Spin again\u2003\u2003\u2003◀ Cancel</string>
+    <!-- mood_posters: the deck's keys, and the row of a mood's posters (MoodShelfView). -->
+    <string name="mood_keys_posters">◀ Nope\u2003\u2003\u2003Open ▶ or OK</string>
+    <string name="mood_keys_posters_one">Open ▶ or OK</string>
+    <string name="shelf_keys">◀ ▶ Browse\u2003\u2003\u2003OK Play\u2003\u2003\u2003▼ Surprise me\u2003\u2003\u2003▲ Back</string>
+    <string name="shelf_keys_button">OK Surprise me\u2003\u2003\u2003▲ Back to the posters</string>
+    <string name="shelf_surprise">Surprise me</string>
+    <!-- mood_watched: the small menu after OK is held on the centre poster. -->
+    <string name="shelf_watched">I\'ve watched it</string>
 </resources>

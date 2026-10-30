@@ -4,8 +4,9 @@ from the TV's copy are sent; only files that left the theme are deleted on the T
 
 Usage: TV_HOST=192.168.1.50 tools/venv/bin/python tools/theme_sync.py themes/aurora [--json] [--full]
 
-    --json   one JSON line per step ({"event": "progress", "done": 3, "total": 12, "file": "logos/a.png"}), the last
-             one the answer ({"ok": true, "sent": 3, "deleted": 0, "seconds": 4.2}), for tools such as TV Studio
+    --json   one JSON line per step ({"event": "progress", "done": 3, "total": 12, "file": "logos/a.png",
+             "sent_bytes": 81920, "total_bytes": 409600}), the last one the answer ({"ok": true, "sent": 3,
+             "deleted": 0, "seconds": 4.2}), for tools such as TV Studio
     --full   send every file, as theme.sh does (still one connection)
 
 theme.sh stays the reference: the same files are read (config.json, wallpaper.jpg/.png, wallpapers/ with captions.txt,
@@ -197,11 +198,15 @@ def main():
         say(event="plan", send=len(changed), delete=len(stale), known=remote is not None)
         folders = sorted({n.split("/")[0] for n in changed if "/" in n})
         dev.shell(f"mkdir -p {DIR}" + "".join(f" {DIR}/{f}" for f in folders) + " 2>/dev/null")
+        # Bytes too, so a tool can tell how long the rest will take (most of the time is the pictures' size).
+        total_bytes = sum(os.path.getsize(local[n]) for n in changed)
+        sent_bytes = 0
         for i, name in enumerate(changed):
-            say(event="progress", done=i, total=len(changed), file=name)
+            say(event="progress", done=i, total=len(changed), file=name, sent_bytes=sent_bytes, total_bytes=total_bytes)
             dev = send(dev, local[name], stage(name), tv.connect)
             # The provider copies the file over: a big picture (a 4K PNG) takes longer than the usual 10 s read.
             dev.shell(put(name), read_timeout_s=max(30.0, os.path.getsize(local[name]) / 1e6 * 4.0))
+            sent_bytes += os.path.getsize(local[name])
         if stale:
             # Each `content delete` starts a process (about a second on a TV): give the whole batch its time.
             dev.shell("; ".join(delete(n) for n in stale), read_timeout_s=max(30.0, 3.0 * len(stale)))
@@ -212,7 +217,7 @@ def main():
             if wrong:
                 say(ok=False, kind="verify", detail="the TV's copy differs after sending: " + ", ".join(wrong))
                 return 1
-        say(event="progress", done=len(changed), total=len(changed), file="")
+        say(event="progress", done=len(changed), total=len(changed), file="", sent_bytes=sent_bytes, total_bytes=total_bytes)
         revision = uuid.uuid4().hex
         dev.shell(f"printf '%s' '{revision}' > {stage('theme_revision')}; {put('theme_revision')}")
         say(event="restart")

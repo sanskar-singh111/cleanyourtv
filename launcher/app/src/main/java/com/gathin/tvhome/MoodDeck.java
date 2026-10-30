@@ -15,7 +15,7 @@ import java.util.Random;
  */
 final class MoodDeck {
     /** Bounds on what a theme can list, so a broken file can't run away with the TV's memory or time. */
-    static final int MAX_TITLES = 140, MAX_MOODS = 12;
+    static final int MAX_TITLES = 200, MAX_MOODS = 12;
     /** Different posters on one reel at most: only they are decoded for the spin. */
     static final int REEL_POSTERS = 8;
     /** Posters the reel passes before it lands (at least; whole turns of its posters). */
@@ -32,9 +32,16 @@ final class MoodDeck {
         final int flags;
         final Map<String, String> extras;
         final String appName;
+        /** The year it came out, "" when the theme doesn't say (shown under the poster row). */
+        final String year;
 
         Title(String key, String title, File poster, File backdrop, String packageName, String uri, String component,
               int flags, Map<String, String> extras, String appName) {
+            this(key, title, poster, backdrop, packageName, uri, component, flags, extras, appName, "");
+        }
+
+        Title(String key, String title, File poster, File backdrop, String packageName, String uri, String component,
+              int flags, Map<String, String> extras, String appName, String year) {
             this.key = key == null ? "" : key;
             this.title = title == null ? "" : title;
             this.poster = poster;
@@ -45,6 +52,7 @@ final class MoodDeck {
             this.flags = flags;
             this.extras = extras == null ? Collections.emptyMap() : Collections.unmodifiableMap(extras);
             this.appName = appName == null ? "" : appName;
+            this.year = year == null ? "" : year;
         }
     }
 

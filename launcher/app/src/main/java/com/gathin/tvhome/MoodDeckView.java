@@ -54,6 +54,8 @@ final class MoodDeckView extends View {
         /** Up, or Back on the deck: back to the watchlist. */
         void onDeckUp();
         void onDeckOpen(MoodDeck.Title title);
+        /** mood_posters: Right or OK on a card opens the row of its posters (instead of spinning). */
+        default void onDeckChoose(MoodDeck.Mood mood) {}
     }
 
     private enum State { IDLE, SPIN, COUNTDOWN }
@@ -63,8 +65,10 @@ final class MoodDeckView extends View {
     private static final int NEAR_BLACK = 0xFF0C0C0E;
 
     private final List<MoodDeck.Title> titles;
-    private final List<MoodDeck.Mood> moods;
+    private List<MoodDeck.Mood> moods;
     private final Listener listener;
+    /** mood_posters: Right and OK open the card's posters; the reel runs from their "Surprise me". */
+    private final boolean postersRow;
     private final String heading;
     private final Random random = new Random();
     private final Handler main = new Handler(Looper.getMainLooper());
@@ -126,7 +130,13 @@ final class MoodDeckView extends View {
 
     MoodDeckView(Context context, List<MoodDeck.Title> titles, List<MoodDeck.Mood> moods, String heading,
                  Typeface lightFont, Typeface mediumFont, Listener listener) {
+        this(context, titles, moods, heading, lightFont, mediumFont, false, listener);
+    }
+
+    MoodDeckView(Context context, List<MoodDeck.Title> titles, List<MoodDeck.Mood> moods, String heading,
+                 Typeface lightFont, Typeface mediumFont, boolean posters, Listener listener) {
         super(context);
+        this.postersRow = posters;
         this.titles = titles;
         this.moods = MoodDeck.usable(moods);
         this.heading = heading == null ? "" : heading;
@@ -158,6 +168,35 @@ final class MoodDeckView extends View {
     void enter() {
         reset();
         load();
+    }
+
+    /** The card on top. */
+    MoodDeck.Mood topMood() {
+        return moods.isEmpty() ? null : moods.get(top);
+    }
+
+    /** mood_posters' "Surprise me": back on the deck, the reel spins for the card on top. */
+    void surprise() {
+        reset();
+        load();
+        spin();
+    }
+
+    /** Titles gone from every mood (watched on the posters): left out of the cards; a card left empty goes. */
+    void hide(java.util.Set<String> keys) {
+        MoodDeck.Mood was = topMood();
+        reset();
+        moods = WatchlistRemovals.without(moods, titles, keys);
+        int at = -1;
+        for (int i = 0; was != null && i < moods.size(); i++) if (moods.get(i).name.equals(was.name)) at = i;
+        top = at >= 0 ? at : Math.min(top, Math.max(0, moods.size() - 1));
+        cardShaders.clear();
+        if (!released) {
+            backdrop = previousBackdrop = null;
+            backdropFile = null;
+            load();
+        }
+        invalidate();
     }
 
     /** Back to the top card at rest: no reel, no countdown. */
@@ -403,6 +442,13 @@ final class MoodDeckView extends View {
         if (countdownAnimator != null) countdownAnimator.cancel();
     }
 
+    /** mood_posters: the card on top opens as a row of its posters. */
+    private void choose() {
+        finishSwipe();
+        if (moods.isEmpty()) return;
+        listener.onDeckChoose(moods.get(top));
+    }
+
     /** Left or Back during the reel or the countdown: back to the card at rest. */
     private void cancelReel() {
         if (spinAnimator != null) spinAnimator.cancel();
@@ -442,7 +488,12 @@ final class MoodDeckView extends View {
                 }
                 return true;
             case KeyEvent.KEYCODE_DPAD_RIGHT:
-                if (state != State.SPIN) spin();   // during the countdown: spin again
+                if (postersRow && state == State.IDLE) {
+                    playSoundEffect(SoundEffectConstants.NAVIGATION_RIGHT);
+                    choose();
+                } else if (state != State.SPIN) {
+                    spin();   // during the countdown: spin again
+                }
                 return true;
             case KeyEvent.KEYCODE_DPAD_UP:
                 playSoundEffect(SoundEffectConstants.NAVIGATION_UP);
@@ -471,7 +522,8 @@ final class MoodDeckView extends View {
                 if (event.isCanceled()) return true;
                 if (state == State.IDLE) {
                     playSoundEffect(SoundEffectConstants.CLICK);
-                    spin();
+                    if (postersRow) choose();
+                    else spin();
                 } else if (state == State.COUNTDOWN) {
                     playSoundEffect(SoundEffectConstants.CLICK);
                     openPicked();   // now, without waiting
@@ -727,6 +779,7 @@ final class MoodDeckView extends View {
         }
         int hint = state == State.COUNTDOWN ? R.string.mood_keys_countdown
                 : state == State.SPIN ? R.string.mood_keys_spinning
+                : postersRow ? (moods.size() > 1 ? R.string.mood_keys_posters : R.string.mood_keys_posters_one)
                 : moods.size() > 1 ? R.string.mood_keys : R.string.mood_keys_one;
         String keys = getResources().getString(hint);
         smallPaint.setAlpha(0x80);

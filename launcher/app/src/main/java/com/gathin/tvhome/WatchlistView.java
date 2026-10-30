@@ -496,9 +496,26 @@ final class WatchlistView extends View {
     /** Takes the selected character off the lineup at once; the next one on its page (or a neighbour) is selected. */
     private void removeSelected() {
         if (selected < 0 || selected >= items.size()) return;
-        int gone = selected;
+        removeAt(selected, true);
+    }
+
+    /**
+     * mood_watched: a title marked watched on the mood posters leaves the lineup too (it comes off the list). The
+     * lineup is off screen then; the character after it is selected as on a removal here.
+     */
+    void hide(String key) {
+        for (int i = 0; i < items.size(); i++) {
+            if (WatchlistRemovals.keyOf(items.get(i).key, items.get(i).title).equals(key)) {
+                removeAt(i, false);
+                return;
+            }
+        }
+    }
+
+    private void removeAt(int gone, boolean tell) {
         Watchlist.Item item = items.get(gone);
-        int next = Watchlist.afterRemoving(items, gone);
+        int was = selected;
+        int next = gone == was ? Watchlist.afterRemoving(items, gone) : was;
         stopEffect();
         if (selectAnimator != null) selectAnimator.cancel();
         items.remove(gone);
@@ -510,13 +527,13 @@ final class WatchlistView extends View {
         selectedness = s;
         pages = Watchlist.pageCount(items);
         selected = -1;
-        listener.onWatchlistRemove(item);
+        if (tell) listener.onWatchlistRemove(item);
         if (items.isEmpty()) {
             invalidate();
-            listener.onWatchlistExit();
+            if (tell) listener.onWatchlistExit();
             return;
         }
-        select(next > gone ? next - 1 : next, true);
+        select(next > gone ? next - 1 : next, tell);
         load();
     }
 

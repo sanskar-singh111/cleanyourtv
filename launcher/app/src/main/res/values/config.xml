@@ -466,4 +466,16 @@
          and darkened backdrops sit in the theme's moods/ folder; the TV only draws them, and only the ones on screen.
          Optional "mood_deck_heading" is the line above the cards. Needs the watchlist; off, nothing is read or drawn. -->
     <bool name="mood_deck">false</bool>
+    <!-- Mood posters (false, default). A theme sets "mood_posters": true with the mood deck: Right or OK on a mood card
+         opens a row of that mood's posters instead of spinning: the centre one bigger with a play icon, its neighbours
+         smaller and angled, the centre title's darkened backdrop behind. The row moves on slowly by itself until a key
+         is pressed. Left and Right browse, OK opens the centre title, Down goes to "Surprise me" (the reel and countdown
+         of the deck), Up or Back return to the cards. Only the posters on screen and their neighbours are decoded.
+         Optional "mood_posters_heading" is the line above the mood's name (the deck's heading when it is empty). -->
+    <bool name="mood_posters">false</bool>
+    <!-- "I've watched it" (false, default). A theme sets "mood_watched": true with "mood_posters": holding OK on the
+         centre poster for "watchlist_remove_hold" seconds fills a ring, then offers "I've watched it" / "Cancel". The
+         title is hidden from every mood (and the watchlist) at once and listed in watchlist_removed.json, as
+         watchlist_remove does, for a tool on the computer to take off the list or remember as watched. -->
+    <bool name="mood_watched">false</bool>
 </resources>

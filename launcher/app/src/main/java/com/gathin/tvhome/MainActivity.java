@@ -176,6 +176,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private Config watchlistConfig;
     private final Set<String> watchlistHidden = new HashSet<>();
     private boolean inDeck;
+    /** mood_posters: the row of a mood's posters, shown over the deck while inShelf. */
+    private MoodShelfView moodShelfView;
+    private boolean inShelf;
     private ValueAnimator pageScroll;
 
     private AppAdapter adapter;
@@ -986,7 +989,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         stopped = false;
         started = true;
         if (inWatchlist) watchlistView.load();   // after onTrimMemory let its pictures go
-        if (inDeck) moodDeckView.load();
+        if (inShelf) moodShelfView.load();
+        else if (inDeck) moodDeckView.load();
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(timeReceiver, timeFilter, Context.RECEIVER_NOT_EXPORTED);
         } else {
@@ -1438,6 +1442,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         tileRefresh.invalidate();
         if (watchlistView != null) watchlistView.release();
         if (moodDeckView != null) moodDeckView.release();
+        if (moodShelfView != null) moodShelfView.release();
     }
 
     @Override
@@ -2750,7 +2755,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         watchlistConfig = cfg;
         watchlistHidden.clear();
         // Titles removed here and not yet dropped by a push stay hidden (nothing is read with watchlist_remove off).
-        if (cfg.watchlistRemove) watchlistHidden.addAll(WatchlistRemovals.load(this, Config.dir(this)));
+        if (cfg.watchlistRemove || cfg.moodWatched) watchlistHidden.addAll(WatchlistRemovals.load(this, Config.dir(this)));
         List<Watchlist.Item> items = WatchlistRemovals.without(cfg.watchlistItems, i -> i.key, watchlistHidden);
         WatchlistView view = new WatchlistView(this, items, cfg.dockLogos, cfg.watchlistHeading,
                 UiFont.get(this, R.string.font_light), UiFont.get(this, R.string.font_medium), cfg.watchlistEffects,
@@ -2776,14 +2781,73 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 : WatchlistRemovals.without(cfg.moodDeckMoods, cfg.moodDeckTitles, watchlistHidden);
         if (moods.isEmpty()) return;
         MoodDeckView deck = new MoodDeckView(this, cfg.moodDeckTitles, moods, cfg.moodDeckHeading,
-                UiFont.get(this, R.string.font_light), UiFont.get(this, R.string.font_medium), new MoodDeckView.Listener() {
+                UiFont.get(this, R.string.font_light), UiFont.get(this, R.string.font_medium), cfg.moodPosters,
+                new MoodDeckView.Listener() {
             @Override public void onDeckUp() { exitDeck(); }
             @Override public void onDeckOpen(MoodDeck.Title t) { openTitle(t.packageName, t.uri, t.component, t.flags, t.extras); }
+            @Override public void onDeckChoose(MoodDeck.Mood mood) { enterShelf(mood); }
         });
         if (deck.isEmpty()) return;
         moodDeckView = deck;
         content.addView(deck, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         deck.setVisibility(View.INVISIBLE);
+        if (cfg.moodPosters && moodShelfView == null) {
+            MoodShelfView shelf = new MoodShelfView(this, cfg.moodDeckTitles, cfg.moodPostersHeading,
+                    UiFont.get(this, R.string.font_light), UiFont.get(this, R.string.font_medium),
+                    cfg.moodWatched ? cfg.watchlistRemoveHoldMs : 0, new MoodShelfView.Listener() {
+                @Override public void onShelfBack() { exitShelf(true); }
+                @Override public void onShelfOpen(MoodDeck.Title t) { openTitle(t.packageName, t.uri, t.component, t.flags, t.extras); }
+                @Override public void onShelfSurprise() {
+                    exitShelf(true);
+                    moodDeckView.surprise();
+                }
+                @Override public void onShelfWatched(MoodDeck.Title t) { watchedOnShelf(t); }
+            });
+            moodShelfView = shelf;
+            content.addView(shelf, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+            shelf.setVisibility(View.INVISIBLE);
+        }
+    }
+
+    /** mood_posters: Right or OK on a card: its posters' row comes up over the deck, which lets go of its pictures. */
+    private void enterShelf(MoodDeck.Mood mood) {
+        if (moodShelfView == null || !inDeck || inShelf) return;
+        inShelf = true;
+        moodShelfView.setTranslationY(moodDeckView.getTranslationY());
+        moodShelfView.bringToFront();
+        moodShelfView.show(mood);
+        moodShelfView.setAlpha(reducedMotion ? 1f : 0f);
+        moodShelfView.setVisibility(View.VISIBLE);
+        moodShelfView.requestFocus();
+        moodShelfView.animate().alpha(1f).setDuration(reducedMotion ? 0 : 220).withEndAction(() -> {
+            if (!inShelf) return;
+            moodDeckView.setVisibility(View.INVISIBLE);
+            moodDeckView.release();
+        }).start();
+    }
+
+    /** Up or Back on the posters (or "Surprise me"): the deck again, on the same card; `focus` gives it the keys. */
+    private void exitShelf(boolean focus) {
+        if (!inShelf) return;
+        inShelf = false;
+        moodShelfView.animate().cancel();
+        moodShelfView.release();
+        moodShelfView.setVisibility(View.INVISIBLE);
+        moodDeckView.setVisibility(View.VISIBLE);
+        moodDeckView.load();
+        if (focus) moodDeckView.requestFocus();
+    }
+
+    /**
+     * mood_watched: "I've watched it" on a poster (the row has already let it go). It leaves every mood and, if it
+     * is on the watchlist, the lineup; recorded for TV Studio, which takes it off the list or keeps it as watched.
+     */
+    private void watchedOnShelf(MoodDeck.Title t) {
+        String key = WatchlistRemovals.keyOf(t.key, t.title);
+        watchlistHidden.add(key);
+        WatchlistRemovals.record(this, Config.dir(this), key, t.title, t.packageName);
+        if (moodDeckView != null) moodDeckView.hide(watchlistHidden);
+        if (watchlistView != null) watchlistView.hide(key);
     }
 
     /**
@@ -2816,7 +2880,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     /** While the page is scrolled down, the lineup or the deck keeps the focus; false when Home shows the dock. */
     private boolean focusBelow() {
         if (!inWatchlist) return false;
-        View below = inDeck ? moodDeckView : watchlistView;
+        View below = inShelf ? moodShelfView : inDeck ? moodDeckView : watchlistView;
         if (!below.isFocused()) below.requestFocus();
         return true;
     }
@@ -2847,6 +2911,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private void exitWatchlist(boolean animate) {
         if (!inWatchlist) return;
         inWatchlist = false;
+        exitShelf(false);
         if (inDeck) {
             // Home from the deck: all the way up to the dock, past the lineup.
             inDeck = false;
@@ -2878,6 +2943,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (p <= 0f && !inWatchlist) watchlistView.setVisibility(View.INVISIBLE);
         if (moodDeckView != null) {
             moodDeckView.setTranslationY((2f - p) * h);
+            if (moodShelfView != null) moodShelfView.setTranslationY((2f - p) * h);
             // Off screen, each lets go of what it doesn't show: the lineup under the deck, the deck's pictures above it.
             if (p >= 2f && inDeck) watchlistView.setVisibility(View.INVISIBLE);
             if (p <= 1f && !inDeck && moodDeckView.getVisibility() == View.VISIBLE) {
