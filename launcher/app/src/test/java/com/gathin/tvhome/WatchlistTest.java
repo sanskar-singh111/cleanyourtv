@@ -54,12 +54,14 @@ public class WatchlistTest {
     }
 
     @Test
-    public void downFromTheDockLandsOnTheNearestCharacterOfThePage() {
+    public void downFromTheDockAlwaysLandsOnTheFirstCharacterOfTheFirstPage() {
         List<Watchlist.Item> l = lineup();
-        assertEquals(0, Watchlist.entry(l, 0, 0.1f));
-        assertEquals(3, Watchlist.entry(l, 0, 0.52f));
-        assertEquals(8, Watchlist.entry(l, 1, 0.52f));
-        assertEquals("a page that is gone falls back to the first", 3, Watchlist.entry(l, 5, 0.52f));
+        assertEquals("the leftmost of page 1, not the first listed", 0, Watchlist.entry(l));
+        List<Watchlist.Item> shuffled = Arrays.asList(l.get(9), l.get(4), l.get(2), l.get(0), l.get(7));
+        assertEquals("a, the leftmost on page 1, wherever it is listed", 3, Watchlist.entry(shuffled));
+        List<Watchlist.Item> laterOnly = Arrays.asList(l.get(8), l.get(9));
+        assertEquals("no page 1: the first page that has someone", 0, Watchlist.entry(laterOnly));
+        assertEquals(-1, Watchlist.entry(new ArrayList<>()));
     }
 
     @Test

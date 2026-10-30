@@ -196,9 +196,10 @@ final class WatchlistView extends View {
         }
     }
 
-    /** Selects the character nearest `x` (0 to 1) on the page shown last, as Down from the dock does. */
-    void enter(float x) {
-        int i = Watchlist.entry(items, page, x);
+    /** Down from the dock: always the first character of the first page, never the one selected last time. */
+    void enter() {
+        if (slideAnimator != null) slideAnimator.cancel();
+        int i = Watchlist.entry(items);
         if (i >= 0) page = fromPage = items.get(i).page;
         slide = 1f;
         load();

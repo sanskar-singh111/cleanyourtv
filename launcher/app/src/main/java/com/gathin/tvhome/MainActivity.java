@@ -2808,16 +2808,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (inWatchlist) return;
         inWatchlist = true;
         lastFocused = dockPosition;
-        // Lands on the top-row character nearest the dock app that was focused.
-        float x = 0.5f;
-        View tile = grid.getLayoutManager() == null ? null : grid.getLayoutManager().findViewByPosition(dockPosition);
-        if (tile != null && root.getWidth() > 0) {
-            int[] at = new int[2];
-            tile.getLocationOnScreen(at);
-            x = (at[0] + tile.getWidth() / 2f) / root.getWidth();
-        }
         hideGlass();
-        watchlistView.enter(x);
+        // Always the first character of page 1 (Up from the deck keeps its own place: exitDeck doesn't come here).
+        watchlistView.enter();
         watchlistView.setVisibility(View.VISIBLE);
         watchlistView.requestFocus();
         scrollPage(1f, true);

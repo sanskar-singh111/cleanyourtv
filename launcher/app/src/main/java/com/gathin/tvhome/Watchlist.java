@@ -111,21 +111,16 @@ final class Watchlist {
         return out;
     }
 
-    /** The page's item nearest to `x` across the screen, or -1 when the page is empty. */
-    static int nearest(List<Item> items, int page, float x) {
-        int best = -1;
-        float distance = Float.MAX_VALUE;
-        for (int i : onPage(items, page)) {
-            float d = Math.abs(items.get(i).x - x);
-            if (d < distance) { distance = d; best = i; }
+    /**
+     * Where Down from the dock lands: always the first character (leftmost) of the first page that has one, whichever
+     * dock app was focused and whichever character was selected last time. -1 when there are none.
+     */
+    static int entry(List<Item> items) {
+        for (int p = 0; p < pageCount(items); p++) {
+            List<Integer> here = onPage(items, p);
+            if (!here.isEmpty()) return here.get(0);
         }
-        return best;
-    }
-
-    /** Where Down from the dock lands: the character on `page` nearest the focused dock app, else the first page's. */
-    static int entry(List<Item> items, int page, float x) {
-        int i = nearest(items, page, x);
-        return i >= 0 ? i : nearest(items, 0, x);
+        return -1;
     }
 
     /**
@@ -143,7 +138,7 @@ final class Watchlist {
      */
     static int move(List<Item> items, int selected, Direction direction) {
         if (direction == Direction.UP) return EXIT;
-        if (selected < 0 || selected >= items.size()) return items.isEmpty() ? EXIT : entry(items, 0, 0.5f);
+        if (selected < 0 || selected >= items.size()) return items.isEmpty() ? EXIT : entry(items);
         if (direction == Direction.DOWN) return BELOW;
         int page = items.get(selected).page;
         List<Integer> here = onPage(items, page);
