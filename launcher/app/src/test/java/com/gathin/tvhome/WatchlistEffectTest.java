@@ -23,7 +23,7 @@ public class WatchlistEffectTest {
 
     @Test
     public void everyEffectLastsAboutASecond() {
-        assertEquals(14, WatchlistEffect.ALL.size());
+        assertEquals(25, WatchlistEffect.ALL.size());
         for (String id : WatchlistEffect.ALL) {
             long ms = WatchlistEffect.durationMs(id);
             assertTrue(id + " " + ms, ms >= 600 && ms <= 1500);
@@ -71,6 +71,22 @@ public class WatchlistEffectTest {
             for (float ms = 0f; ms < 1100f; ms += 10f) levels.add(WatchlistEffect.flickerDark(ms, seed));
             assertTrue("it flickers", levels.size() >= 2);
         }
+    }
+
+    @Test
+    public void lightningAndShotsFlashBrieflyAndAreDarkBetween() {
+        assertTrue(WatchlistEffect.lightningFlash(45f) > 0.9f);
+        assertEquals(0f, WatchlistEffect.lightningFlash(190f), 0f);
+        assertTrue("a second, weaker flash", WatchlistEffect.lightningFlash(235f) > 0.6f && WatchlistEffect.lightningFlash(235f) < 0.71f);
+        assertEquals(0f, WatchlistEffect.lightningFlash(600f), 0f);
+        int lit = 0;
+        for (float ms = 0f; ms < 900f; ms += 10f) if (WatchlistEffect.gunFlash(ms) > 0f) lit++;
+        assertEquals("three shots of 100 ms", 30, lit);
+        float[] out = new float[5];
+        WatchlistEffect.motion(WatchlistEffect.GUN_SPARKS, 70f, 2L, out);
+        assertTrue("recoil", out[0] < 0f);
+        WatchlistEffect.motion(WatchlistEffect.GUN_SPARKS, 250f, 2L, out);
+        assertEquals("still between shots", 0f, out[0], 0f);
     }
 
     @Test

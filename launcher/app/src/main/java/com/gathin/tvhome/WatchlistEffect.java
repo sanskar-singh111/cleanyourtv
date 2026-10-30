@@ -29,10 +29,14 @@ final class WatchlistEffect {
     static final String SPIDER_SENSE = "spider_sense", SPEEDSTER = "speedster", BLOOD = "blood",
             BLUE_CRYSTALS = "blue_crystals", CIGAR_SMOKE = "cigar_smoke", THE_NUMBERS = "the_numbers",
             COFFEE_STEAM = "coffee_steam", LIGHT_FLICKER = "light_flicker", SCOPE_GLINT = "scope_glint",
-            GLITCH = "glitch", POLICE_LIGHTS = "police_lights", BOUNCE = "bounce", SHAKE = "shake", SPOTLIGHT = "spotlight";
+            GLITCH = "glitch", POLICE_LIGHTS = "police_lights", BOUNCE = "bounce", SHAKE = "shake", SPOTLIGHT = "spotlight",
+            FIRE_EMBERS = "fire_embers", SNOW = "snow", LIGHTNING = "lightning", MAGIC_SPARKS = "magic_sparks",
+            STARS = "stars", GREEN_FOG = "green_fog", RAIN = "rain", GOLD_COINS = "gold_coins", GUN_SPARKS = "gun_sparks",
+            PETALS = "petals", GHOST_SHIMMER = "ghost_shimmer";
     static final List<String> ALL = Collections.unmodifiableList(Arrays.asList(SPIDER_SENSE, SPEEDSTER, BLOOD,
             BLUE_CRYSTALS, CIGAR_SMOKE, THE_NUMBERS, COFFEE_STEAM, LIGHT_FLICKER, SCOPE_GLINT, GLITCH, POLICE_LIGHTS,
-            BOUNCE, SHAKE, SPOTLIGHT));
+            BOUNCE, SHAKE, SPOTLIGHT, FIRE_EMBERS, SNOW, LIGHTNING, MAGIC_SPARKS, STARS, GREEN_FOG, RAIN, GOLD_COINS,
+            GUN_SPARKS, PETALS, GHOST_SHIMMER));
 
     /** The effect's id as the theme spells it, or null for none or one this launcher doesn't know. */
     static String known(String id) {
@@ -46,10 +50,11 @@ final class WatchlistEffect {
         switch (id) {
             case SHAKE: return 650;
             case BOUNCE: return 800;
-            case GLITCH: return 900;
-            case BLOOD: case LIGHT_FLICKER: return 1100;
-            case THE_NUMBERS: case POLICE_LIGHTS: return 1200;
-            case SPOTLIGHT: return 1300;
+            case GLITCH: case LIGHTNING: case GUN_SPARKS: return 900;
+            case BLOOD: case LIGHT_FLICKER: case MAGIC_SPARKS: return 1100;
+            case THE_NUMBERS: case POLICE_LIGHTS: case FIRE_EMBERS: case RAIN: case GOLD_COINS: case GHOST_SHIMMER: return 1200;
+            case SPOTLIGHT: case SNOW: case STARS: case GREEN_FOG: return 1300;
+            case PETALS: return 1400;
             case CIGAR_SMOKE: return 1500;
             default: return 1000;
         }
@@ -127,9 +132,32 @@ final class WatchlistEffect {
                 if (b >= 0) out[0] = ((seed >> b) & 1) == 0 ? 0.006f : -0.006f;
                 break;
             }
+            case GUN_SPARKS:
+                // A small recoil away from each shot.
+                for (float b : GUN_BURSTS) {
+                    if (ms >= b && ms < b + 120f) out[0] = ((seed & 1) == 0 ? -1f : 1f) * 0.005f * (1f - (ms - b) / 120f);
+                }
+                break;
             default:
                 break;
         }
+    }
+
+    /** gun_sparks: when the three shots go off, in ms. */
+    static final float[] GUN_BURSTS = {60f, 320f, 580f};
+
+    /** gun_sparks: how bright the shots' flash is at `ms`, 0 to 1 (each fades over 100 ms). */
+    static float gunFlash(float ms) {
+        float k = 0f;
+        for (float b : GUN_BURSTS) if (ms >= b && ms < b + 100f) k = Math.max(k, 1f - (ms - b) / 100f);
+        return k;
+    }
+
+    /** lightning: the two flashes, 0 to 1: a strike at 40 ms and a weaker one at 230 ms. */
+    static float lightningFlash(float ms) {
+        if (ms >= 40f && ms < 140f) return 1f - (ms - 40f) / 100f;
+        if (ms >= 230f && ms < 330f) return 0.7f * (1f - (ms - 230f) / 100f);
+        return 0f;
     }
 
     private static final float[] BURSTS = {20f, 300f, 560f};
@@ -182,10 +210,11 @@ final class WatchlistEffect {
     private final Path path = new Path();
     private final RectF box = new RectF();
     private final float[] moved = new float[5];
-    private final PorterDuffColorFilter yellow = tint(0xFFFFD21F), red = tint(0xFFFF2A4A), cyan = tint(0xFF22E5FF);
+    private final PorterDuffColorFilter yellow = tint(0xFFFFD21F), red = tint(0xFFFF2A4A), cyan = tint(0xFF22E5FF),
+            pale = tint(0xFFBFE8FF);
     /** Unit-sized gradients, placed with the canvas's matrix, so nothing is made per frame. */
     private final RadialGradient redGlow = glowShader(0xFFFF1E1E), blueGlow = glowShader(0xFF1E5BFF),
-            warmGlow = glowShader(0xFFFFF1D6), greenGlow = glowShader(0xFF5FBF4F);
+            warmGlow = glowShader(0xFFFFF1D6), greenGlow = glowShader(0xFF5FBF4F), emberGlow = glowShader(0xFFFF7A1E);
     private final LinearGradient beam = new LinearGradient(0, 0, 0, 1, 0x40FFF4D6, 0x0CFFF4D6, Shader.TileMode.CLAMP);
 
     private String id;
@@ -273,6 +302,14 @@ final class WatchlistEffect {
             case GLITCH: glitchSplit(canvas, fig); break;
             case POLICE_LIGHTS: policeLights(canvas, t, w, h); break;
             case SPOTLIGHT: spotlight(canvas, t, w, h); break;
+            case FIRE_EMBERS: glow(canvas, emberGlow, figure.centerX(), emberBase(h), figure.width() * 0.75f,
+                    figure.height() * 0.14f, 0.55f * envelope(t, 0.12f, 0.35f)); break;
+            case LIGHTNING: darken(canvas, 0.3f * envelope(t, 0.05f, 0.3f) - 0.5f * lightningFlash(ms), w, h); break;
+            case STARS: stars(canvas, t, w, h); break;
+            case GREEN_FOG: fog(canvas, t, h, false); break;
+            case RAIN: darken(canvas, 0.18f * envelope(t, 0.12f, 0.3f), w, h); break;
+            case GUN_SPARKS: darken(canvas, -0.1f * gunFlash(ms), w, h); break;
+            case GHOST_SHIMMER: ghostShimmer(canvas, fig); break;
             default: break;
         }
     }
@@ -290,6 +327,15 @@ final class WatchlistEffect {
             case COFFEE_STEAM: steam(canvas, w); break;
             case SCOPE_GLINT: scopeGlint(canvas, w, h); break;
             case GLITCH: glitchSlices(canvas, fig); break;
+            case FIRE_EMBERS: embers(canvas, h); break;
+            case SNOW: snow(canvas, t, w); break;
+            case LIGHTNING: lightning(canvas, w); break;
+            case MAGIC_SPARKS: magicSparks(canvas); break;
+            case GREEN_FOG: fog(canvas, t, h, true); break;
+            case RAIN: rain(canvas, t, h); break;
+            case GOLD_COINS: coins(canvas, h); break;
+            case GUN_SPARKS: gunSparks(canvas); break;
+            case PETALS: petals(canvas, t); break;
             default: break;
         }
     }
@@ -662,5 +708,260 @@ final class WatchlistEffect {
         fill.setShader(null);
         canvas.restore();
         glow(canvas, warmGlow, cx, feet, fw * 0.8f, figure.height() * 0.06f, 0.35f * e);
+    }
+
+    // Fire embers: sparks rising from a warm glow at the feet, swaying as they go.
+    /** Where the embers start: low on the figure, but above the lineup's dark bottom edge. */
+    private float emberBase(int h) {
+        return Math.min(figure.top + figure.height() * 0.8f, h * 0.86f);
+    }
+
+    private void embers(Canvas canvas, int h) {
+        float base = emberBase(h);
+        fill.setShader(null);
+        for (int i = 0; i < 22; i++) {
+            float x0 = figure.centerX() + rand(-0.6f, 0.6f) * figure.width();
+            float y0 = base - rand(0f, 0.4f) * figure.height();
+            float rise = figure.height() * rand(0.4f, 0.8f), delay = rand(0f, 450f), life = rand(500f, 750f);
+            float sway = rand(6f, 16f) * density, phase = rand(0f, 6.28f), size = rand(2.6f, 5f) * density;
+            float local = (ms - delay) / life;
+            if (local <= 0f || local >= 1f) continue;
+            float x = x0 + (float) Math.sin(local * 5f + phase) * sway, y = y0 - rise * easeOut(local);
+            fill.setColor(local < 0.5f ? 0xFFFFC14D : 0xFFFF6A1E);
+            fill.setAlpha(Math.round(255 * (float) Math.sin(Math.PI * local)));
+            canvas.drawCircle(x, y, size * (1f - 0.4f * local), fill);
+        }
+    }
+
+    // Snow: soft flakes drifting down around the figure.
+    private void snow(Canvas canvas, float t, int w) {
+        float e = envelope(t, 0.15f, 0.3f);
+        float span = Math.max(figure.width() * 2.2f, 240 * density);
+        fill.setShader(null);
+        fill.setColor(0xFFFFFFFF);
+        for (int i = 0; i < 28; i++) {
+            float x0 = figure.centerX() + rand(-0.5f, 0.5f) * span;
+            float y0 = figure.top + figure.height() * rand(-0.4f, 0.5f);
+            float fall = figure.height() * rand(0.3f, 0.6f), size = rand(1.8f, 4f) * density;
+            float sway = rand(4f, 12f) * density, phase = rand(0f, 6.28f);
+            float x = x0 + (float) Math.sin(t * 6f + phase) * sway, y = y0 + fall * t;
+            if (x < 0f || x > w) continue;
+            fill.setAlpha(Math.round(220 * e * (0.5f + 0.5f * size / (4f * density))));
+            canvas.drawCircle(x, y, size, fill);
+        }
+    }
+
+    // Lightning: a jagged bolt from the top of the screen to beside the head, with the flashes (behind).
+    private void lightning(Canvas canvas, int w) {
+        float side = random.nextBoolean() ? 1f : -1f;
+        float x1 = headX + side * headSize * rand(0.9f, 1.4f), y1 = headY - headSize * 0.1f;
+        float x0 = Math.max(0f, Math.min(w, x1 + side * figure.width() * rand(0.2f, 0.6f)));
+        int n = 9;
+        float bx = x0, by = 0f, seg = y1 / n;
+        path.reset();
+        path.moveTo(x0, 0f);
+        for (int k = 1; k <= n; k++) {
+            float jitter = k == n ? 0f : rand(-1f, 1f) * seg * 0.6f;
+            float x = x0 + (x1 - x0) * k / n + jitter, y = seg * k;
+            path.lineTo(x, y);
+            if (k == 4) { bx = x; by = y; }
+        }
+        path.moveTo(bx, by);
+        for (int k = 1; k <= 3; k++) path.lineTo(bx + side * seg * 0.7f * k + rand(-0.3f, 0.3f) * seg, by + seg * 0.8f * k);
+        float flash = lightningFlash(ms);
+        float a = ms < 40f ? 0f : (1f - smooth((ms - 330f) / 260f)) * (0.55f + 0.45f * Math.min(1f, flash * 1.4f));
+        if (a <= 0f) return;
+        stroke.setColor(0xFF9EC8FF);
+        stroke.setStrokeWidth(8f * density);
+        stroke.setAlpha(Math.round(90 * a));
+        canvas.drawPath(path, stroke);
+        stroke.setColor(0xFFFFFFFF);
+        stroke.setStrokeWidth(2.4f * density);
+        stroke.setAlpha(Math.round(255 * a));
+        canvas.drawPath(path, stroke);
+    }
+
+    // Magic sparks: gold and violet sparkles circling the figure and rising.
+    private void magicSparks(Canvas canvas) {
+        float cx = figure.centerX(), cy = figure.top + figure.height() * 0.45f;
+        float rx = figure.width() * 0.62f, ry = figure.height() * 0.42f;
+        float dir = random.nextBoolean() ? 1f : -1f;
+        for (int i = 0; i < 18; i++) {
+            float a0 = rand(0f, 6.28f), speed = rand(2.4f, 4.2f), lift = rand(-0.15f, 0.15f), delay = rand(0f, 300f);
+            float size = rand(5f, 11f) * density;
+            boolean gold = random.nextBoolean();
+            float local = (ms - delay) / 700f;
+            if (local <= 0f || local >= 1f) continue;
+            float a = a0 + dir * speed * local;
+            float x = cx + (float) Math.cos(a) * rx * (0.7f + 0.3f * local);
+            float y = cy + (float) Math.sin(a) * ry * 0.55f + lift * figure.height() - local * figure.height() * 0.12f;
+            float k = (float) Math.sin(Math.PI * local);
+            sparkle(canvas, x, y, size * k, gold ? 0xFFFFE07A : 0xFFC9A2FF, Math.round(255 * k));
+        }
+    }
+
+    private void sparkle(Canvas canvas, float x, float y, float s, int color, int alpha) {
+        stroke.setColor(color);
+        stroke.setAlpha(alpha);
+        stroke.setStrokeWidth(1.6f * density);
+        canvas.drawLine(x - s, y, x + s, y, stroke);
+        canvas.drawLine(x, y - s, x, y + s, stroke);
+        fill.setShader(null);
+        fill.setColor(0xFFFFFFFF);
+        fill.setAlpha(alpha);
+        canvas.drawCircle(x, y, Math.max(1f * density, s * 0.22f), fill);
+    }
+
+    // Stars: the room goes to night, small stars twinkle across it, and one shooting star crosses.
+    private void stars(Canvas canvas, float t, int w, int h) {
+        float e = envelope(t, 0.15f, 0.3f);
+        darken(canvas, 0.35f * e, w, h);
+        fill.setShader(null);
+        fill.setColor(0xFFEAF2FF);
+        for (int i = 0; i < 34; i++) {
+            float x = rand(0.03f, 0.97f) * w, y = rand(0.04f, 0.7f) * h, size = rand(0.8f, 2.2f) * density;
+            float phase = rand(0f, 6.28f);
+            float twinkle = 0.55f + 0.45f * (float) Math.sin(ms / 90f + phase);
+            fill.setAlpha(Math.round(230 * e * twinkle));
+            canvas.drawCircle(x, y, size, fill);
+        }
+        float sx = rand(0.15f, 0.6f) * w, sy = rand(0.08f, 0.3f) * h;
+        float local = (ms - 250f) / 450f;
+        if (local <= 0f || local >= 1f) return;
+        float length = 0.22f * w, x = sx + length * local, y = sy + length * 0.35f * local;
+        float tail = 0.25f * length * (float) Math.sin(Math.PI * local);
+        stroke.setColor(0xFFFFFFFF);
+        stroke.setStrokeWidth(2f * density);
+        stroke.setAlpha(Math.round(230 * (float) Math.sin(Math.PI * local)));
+        canvas.drawLine(x - tail, y - tail * 0.35f, x, y, stroke);
+    }
+
+    // Green fog: low green puffs drifting around the legs, most behind the figure and a few in front.
+    private void fog(Canvas canvas, float t, int h, boolean front) {
+        if (front) random.setSeed(seed * 3 + 1);
+        float e = envelope(t, 0.2f, 0.35f);
+        float feet = footY(h), fw = figure.width(), fh = figure.height();
+        for (int i = 0; i < (front ? 4 : 7); i++) {
+            float x0 = figure.centerX() + rand(-0.9f, 0.9f) * fw, y = feet - rand(0f, front ? 0.12f : 0.3f) * fh;
+            float rx = fw * rand(0.35f, 0.7f), ry = fh * rand(0.06f, 0.12f), drift = rand(-1f, 1f) * fw * 0.25f;
+            glow(canvas, greenGlow, x0 + drift * t, y, rx, ry, (front ? 0.28f : 0.5f) * e);
+        }
+    }
+
+    // Rain: thin slanted streaks falling past the figure (the room dims a little behind).
+    private void rain(Canvas canvas, float t, int h) {
+        float e = envelope(t, 0.12f, 0.3f);
+        float span = Math.max(figure.width() * 2.4f, 300 * density);
+        stroke.setColor(0xFFCFE3FF);
+        stroke.setStrokeWidth(1.4f * density);
+        stroke.setAlpha(Math.round(110 * e));
+        for (int i = 0; i < 36; i++) {
+            float x0 = figure.centerX() + rand(-0.5f, 0.5f) * span, offset = rand(0f, 1f);
+            float length = rand(16f, 30f) * density, speed = rand(0.9f, 1.3f);
+            float y = ((offset + ms / 700f * speed) % 1f) * h * 1.1f - 0.05f * h;
+            float x = x0 - y / h * 30 * density;
+            canvas.drawLine(x, y, x - 0.25f * length, y + length, stroke);
+        }
+    }
+
+    // Gold coins: coins tumbling down onto the figure's feet, spinning as they fall.
+    private void coins(Canvas canvas, int h) {
+        float feet = footY(h);
+        fill.setShader(null);
+        for (int i = 0; i < 11; i++) {
+            float x = figure.centerX() + rand(-0.7f, 0.7f) * figure.width();
+            float y0 = figure.top - figure.height() * rand(0.1f, 0.35f), delay = rand(0f, 400f);
+            float r = rand(6f, 10f) * density, spin = rand(8f, 14f), phase = rand(0f, 6.28f);
+            float local = (ms - delay) / 650f;
+            if (local <= 0f || local >= 1.15f) continue;
+            float fall = Math.min(1f, local);
+            float y = Math.min(feet - r, y0 + (feet - y0) * fall * fall);
+            float half = r * Math.max(0.15f, Math.abs((float) Math.cos(phase + spin * local)));
+            int alpha = Math.round(255 * (local < 1f ? 1f : 1f - (local - 1f) / 0.15f));
+            box.set(x - half, y - r, x + half, y + r);
+            fill.setColor(0xFFF5C542);
+            fill.setAlpha(alpha);
+            canvas.drawOval(box, fill);
+            stroke.setColor(0xFFB8860B);
+            stroke.setStrokeWidth(1.2f * density);
+            stroke.setAlpha(alpha);
+            canvas.drawOval(box, stroke);
+            if (half > r * 0.6f) {
+                fill.setColor(0xFFFFF6D0);
+                fill.setAlpha(Math.round(alpha * 0.8f));
+                canvas.drawCircle(x - half * 0.35f, y - r * 0.35f, r * 0.18f, fill);
+            }
+        }
+    }
+
+    // Gun sparks: three muzzle flashes beside the figure, each throwing a few sparks (recoil in motion()).
+    private void gunSparks(Canvas canvas) {
+        float side = (seed & 1) == 0 ? 1f : -1f;
+        fill.setShader(null);
+        for (int b = 0; b < GUN_BURSTS.length; b++) {
+            float x = figure.centerX() + side * figure.width() * rand(0.38f, 0.55f);
+            float y = figure.top + figure.height() * rand(0.35f, 0.6f);
+            float length = rand(16f, 28f) * density, turn = rand(0f, 0.8f);
+            float local = (ms - GUN_BURSTS[b]) / 140f, flying = (ms - GUN_BURSTS[b]) / 300f;
+            if (local > 0f && local < 1f) {
+                float k = 1f - local;
+                stroke.setColor(0xFFFFE9A8);
+                stroke.setStrokeWidth(2.4f * density);
+                stroke.setAlpha(Math.round(255 * k));
+                for (int r = 0; r < 8; r++) {
+                    double a = turn + r * Math.PI / 4;
+                    float l = length * k * (r % 2 == 0 ? 1f : 0.55f);
+                    canvas.drawLine(x, y, x + (float) Math.cos(a) * l, y + (float) Math.sin(a) * l, stroke);
+                }
+                fill.setColor(0xFFFFFFFF);
+                fill.setAlpha(Math.round(255 * k));
+                canvas.drawCircle(x, y, (4f * k + 1.5f) * density, fill);
+            }
+            for (int i = 0; i < 6; i++) {
+                float a = rand(0f, 6.28f), v = rand(30f, 70f) * density;
+                if (flying <= 0f || flying >= 1f) continue;
+                fill.setColor(0xFFFFB84D);
+                fill.setAlpha(Math.round(255 * (1f - flying)));
+                canvas.drawCircle(x + (float) Math.cos(a) * v * flying,
+                        y + (float) Math.sin(a) * v * flying + 40 * density * flying * flying, 1.6f * density, fill);
+            }
+        }
+    }
+
+    // Petals: pink petals drifting down on a breeze, turning as they fall.
+    private void petals(Canvas canvas, float t) {
+        float e = envelope(t, 0.12f, 0.3f);
+        float span = Math.max(figure.width() * 2.2f, 260 * density);
+        float wind = random.nextBoolean() ? 1f : -1f;
+        fill.setShader(null);
+        for (int i = 0; i < 16; i++) {
+            float x0 = figure.centerX() + rand(-0.5f, 0.5f) * span, y0 = figure.top - figure.height() * rand(0f, 0.35f);
+            float fall = figure.height() * rand(0.4f, 0.75f), drift = wind * rand(20f, 60f) * density;
+            float size = rand(4f, 7f) * density, spin = rand(-200f, 200f), phase = rand(0f, 6.28f);
+            canvas.save();
+            canvas.translate(x0 + drift * t + (float) Math.sin(t * 5f + phase) * 8 * density, y0 + fall * t);
+            canvas.rotate(phase * 57f + spin * t);
+            box.set(-size, -size * 0.55f, size, size * 0.55f);
+            fill.setColor(i % 2 == 0 ? 0xFFFFA8C8 : 0xFFFFD1E0);
+            fill.setAlpha(Math.round(230 * e));
+            canvas.drawOval(box, fill);
+            canvas.restore();
+        }
+    }
+
+    // Ghost shimmer: two pale see-through copies of the figure slipping out to either side and up.
+    private void ghostShimmer(Canvas canvas, Bitmap fig) {
+        if (fig == null) return;
+        float e = envelope(ms / durationMs(GHOST_SHIMMER), 0.15f, 0.35f);
+        ghost.setColorFilter(pale);
+        for (int k = 0; k < 2; k++) {
+            float dx = (k == 0 ? -1f : 1f) * (6f + 10f * smooth(ms / 900f)) * density
+                    + (float) Math.sin(ms / 110f + k * 2f) * 3 * density;
+            float dy = -figure.height() * 0.025f * smooth(ms / 1000f) * (k + 1);
+            float pulse = 0.5f + 0.5f * (float) Math.sin(ms / 70f + k * 1.3f);
+            box.set(figure.left + dx, figure.top + dy, figure.right + dx, figure.bottom + dy);
+            ghost.setAlpha(Math.round(255 * (0.2f + 0.14f * pulse) * e));
+            canvas.drawBitmap(fig, null, box, ghost);
+        }
     }
 }
