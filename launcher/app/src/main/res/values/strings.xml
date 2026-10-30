@@ -148,6 +148,9 @@
     <string name="last_opened">Last opened %1$s</string>
     <!-- weather_city: the temperature beside the clock. -->
     <string name="weather_celsius" translatable="false">%1$d°C</string>
+    <!-- watchlist_remove: the small menu after OK is held on a watchlist character (WatchlistView). -->
+    <string name="watchlist_remove">Remove from watchlist</string>
+    <string name="watchlist_remove_cancel">Cancel</string>
     <!-- mood_deck: the deck of mood cards under the watchlist (MoodDeckView). -->
     <plurals name="mood_titles">
         <item quantity="one">%1$d title</item>

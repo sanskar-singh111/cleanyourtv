@@ -46,16 +46,18 @@ final class Watchlist {
         final String effect;
         /** Where the head is in the figure picture: its centre across and down, and its height, all 0 to 1. */
         final float headX, headY, headSize;
+        /** What names the title for watchlist_remove: the theme's key ("movie-138843"), or "title:" and its title. */
+        final String key;
 
         Item(String title, File image, File glow, File scene, int color, int row, int page, float x, float bottom, float height,
              String packageName, String uri, String component, int flags, Map<String, String> extras, String appName) {
             this(title, image, glow, scene, color, row, page, x, bottom, height, packageName, uri, component, flags, extras,
-                    appName, null, null);
+                    appName, null, null, null);
         }
 
         Item(String title, File image, File glow, File scene, int color, int row, int page, float x, float bottom, float height,
              String packageName, String uri, String component, int flags, Map<String, String> extras, String appName,
-             String effect, float[] head) {
+             String effect, float[] head, String key) {
             this.title = title == null ? "" : title;
             this.image = image;
             this.glow = glow;
@@ -78,6 +80,7 @@ final class Watchlist {
             this.headX = hasHead ? clamp(head[0], 0f, 1f) : 0.5f;
             this.headY = hasHead ? clamp(head[1], 0f, 1f) : 0.12f;
             this.headSize = hasHead ? clamp(head[2], 0.02f, 0.6f) : 0.14f;
+            this.key = WatchlistRemovals.keyOf(key, this.title);
         }
     }
 
@@ -157,6 +160,28 @@ final class Watchlist {
             if (!previous.isEmpty()) return previous.get(previous.size() - 1);
         }
         return selected;
+    }
+
+    /**
+     * watchlist_remove: who is selected after `gone` is taken off: the next one across its page, else the one before
+     * it, else the first on a later page, else the last on an earlier one; -1 when it was the only one. An index into
+     * the list as it is before the removal.
+     */
+    static int afterRemoving(List<Item> items, int gone) {
+        int page = items.get(gone).page;
+        List<Integer> here = onPage(items, page);
+        int at = here.indexOf(gone);
+        if (at + 1 < here.size()) return here.get(at + 1);
+        if (at > 0) return here.get(at - 1);
+        for (int p = page + 1; p < pageCount(items); p++) {
+            List<Integer> next = onPage(items, p);
+            if (!next.isEmpty()) return next.get(0);
+        }
+        for (int p = page - 1; p >= 0; p--) {
+            List<Integer> previous = onPage(items, p);
+            if (!previous.isEmpty()) return previous.get(previous.size() - 1);
+        }
+        return -1;
     }
 
     /** The order a page's figures are drawn in: back row, then front row, each left to right, the selected one last. */

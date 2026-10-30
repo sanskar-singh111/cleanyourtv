@@ -46,19 +46,23 @@ final class WatchlistView extends View {
         void onWatchlistOpen(Watchlist.Item item);
         /** Down from any page: to the mood deck if there is one (true), else nothing happens. */
         boolean onWatchlistDown();
+        /** watchlist_remove: the title was taken off the lineup (already hidden here); record it. */
+        void onWatchlistRemove(Watchlist.Item item);
     }
 
     private static final long SELECT_MS = 240, SCENE_MS = 450, SLIDE_MS = 420;
     /** How long the page takes to scroll down from the dock, before the first character's effect plays. */
     private static final long ENTER_MS = 460;
     private static final float GROW = 0.06f;
+    /** watchlist_remove: a press shorter than this opens the title; the ring only shows after it. */
+    private static final long RING_DELAY_MS = 350;
 
     private final List<Watchlist.Item> items;
     private final Map<String, File> logos;
     private final Listener listener;
-    private final Bitmap[] figures, glows;
+    private Bitmap[] figures, glows;
     /** 0 = black and white, 1 = fully selected, per item, animated. */
-    private final float[] selectedness;
+    private float[] selectedness;
     private final Map<File, Bitmap> scenes = new HashMap<>();
     private final Map<String, Bitmap> logoBitmaps = new HashMap<>();
     private final Paint figurePaint = new Paint(Paint.FILTER_BITMAP_FLAG | Paint.ANTI_ALIAS_FLAG);
@@ -72,12 +76,12 @@ final class WatchlistView extends View {
     private final ColorMatrix matrix = new ColorMatrix(), dimMatrix = new ColorMatrix();
     private final RectF rect = new RectF(), glowRect = new RectF();
     /** Each item's glow tint, made once. */
-    private final PorterDuffColorFilter[] tints;
+    private PorterDuffColorFilter[] tints;
     private final Handler main = new Handler(Looper.getMainLooper());
     private final float density;
     private final String heading;
 
-    private final int pages;
+    private int pages;
     private int selected = -1;
     /** The page on screen, and while a slide runs the page it comes from (slide 0 to 1, +1 for a slide to the right). */
     private int page, fromPage;
@@ -93,8 +97,18 @@ final class WatchlistView extends View {
     private boolean logosLoaded;
     private int bottomShadeHeight = -1;
 
+    /** watchlist_remove: how long OK is held for the menu (0 = off), the ring's fill, and the small menu. */
+    private final long removeHoldMs;
+    private ValueAnimator holdAnimator;
+    private float holdProgress;
+    private boolean holdShown, menuOpen, swallowOkUp;
+    /** 0 = "Remove from watchlist", 1 = "Cancel". */
+    private int menuChoice;
+    private final Paint ringPaint = new Paint(Paint.ANTI_ALIAS_FLAG), menuPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final TextPaint menuText = new TextPaint(Paint.ANTI_ALIAS_FLAG);
+
     WatchlistView(Context context, List<Watchlist.Item> items, Map<String, File> logos, String heading,
-                  Typeface titleFont, Typeface headingFont, boolean effects, Listener listener) {
+                  Typeface titleFont, Typeface headingFont, boolean effects, long removeHoldMs, Listener listener) {
         super(context);
         this.items = Watchlist.usable(items);
         this.logos = logos;
@@ -110,6 +124,9 @@ final class WatchlistView extends View {
         pages = Watchlist.pageCount(this.items);
         density = context.getResources().getDisplayMetrics().density;
         effect = effects ? new WatchlistEffect(density) : null;
+        this.removeHoldMs = Math.max(0, removeHoldMs);
+        menuText.setTextSize(22 * density);
+        if (headingFont != null) menuText.setTypeface(headingFont);
         setFocusable(true);
         setFocusableInTouchMode(false);
         setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
@@ -180,6 +197,8 @@ final class WatchlistView extends View {
     void release() {
         loadGeneration++;
         stopEffect();
+        cancelHold();
+        menuOpen = false;
         for (int i = 0; i < figures.length; i++) { figures[i] = null; glows[i] = null; }
         scenes.clear();
         scene = previousScene = null;
@@ -329,6 +348,7 @@ final class WatchlistView extends View {
 
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
+        if (menuOpen) return menuKeyDown(keyCode) || super.onKeyDown(keyCode, event);
         Watchlist.Direction d = null;
         switch (keyCode) {
             case KeyEvent.KEYCODE_DPAD_LEFT: d = Watchlist.Direction.LEFT; break;
@@ -338,13 +358,17 @@ final class WatchlistView extends View {
             case KeyEvent.KEYCODE_DPAD_CENTER:
             case KeyEvent.KEYCODE_ENTER:
             case KeyEvent.KEYCODE_NUMPAD_ENTER:
-                event.startTracking();
+                if (event.getRepeatCount() == 0) {
+                    event.startTracking();
+                    startHold();
+                }
                 return true;
             case KeyEvent.KEYCODE_BACK:
                 return true;
             default:
                 return super.onKeyDown(keyCode, event);
         }
+        cancelHold();
         int next = Watchlist.move(items, selected, d);
         if (next == Watchlist.EXIT) {
             playSoundEffect(SoundEffectConstants.NAVIGATION_UP);
@@ -365,16 +389,194 @@ final class WatchlistView extends View {
             case KeyEvent.KEYCODE_DPAD_CENTER:
             case KeyEvent.KEYCODE_ENTER:
             case KeyEvent.KEYCODE_NUMPAD_ENTER:
-                if (!event.isCanceled() && selected >= 0) {
+                if (menuOpen) {
+                    // The release of the hold that opened the menu does nothing; the next press chooses.
+                    if (swallowOkUp) swallowOkUp = false;
+                    else chooseMenu();
+                    return true;
+                }
+                // Let go once the ring showed: the hold is given up, and the title doesn't open either.
+                boolean held = holdShown;
+                cancelHold();
+                if (!event.isCanceled() && selected >= 0 && !held) {
                     playSoundEffect(SoundEffectConstants.CLICK);
                     listener.onWatchlistOpen(items.get(selected));
                 }
                 return true;
             case KeyEvent.KEYCODE_BACK:
-                if (!event.isCanceled()) listener.onWatchlistExit();
+                if (menuOpen) closeMenu();
+                else if (!event.isCanceled()) listener.onWatchlistExit();
                 return true;
             default:
                 return super.onKeyUp(keyCode, event);
+        }
+    }
+
+    // ---- watchlist_remove -------------------------------------------------------------------------------------
+
+    /** OK went down: after a short while a ring fills around the head; full, the small menu opens. */
+    private void startHold() {
+        cancelHold();
+        if (removeHoldMs <= RING_DELAY_MS || selected < 0 || slide < 1f) return;
+        ValueAnimator a = ValueAnimator.ofFloat(0f, 1f).setDuration(removeHoldMs - RING_DELAY_MS);
+        a.setStartDelay(RING_DELAY_MS);
+        a.setInterpolator(null);
+        a.addUpdateListener(v -> {
+            holdShown = true;
+            holdProgress = (float) v.getAnimatedValue();
+            invalidate();
+        });
+        a.addListener(new android.animation.AnimatorListenerAdapter() {
+            @Override public void onAnimationEnd(android.animation.Animator animator) {
+                if (holdProgress >= 1f) openMenu();
+            }
+        });
+        holdAnimator = a;
+        a.start();
+    }
+
+    private void cancelHold() {
+        holdProgress = 0f;
+        if (holdAnimator != null) {
+            holdAnimator.removeAllListeners();
+            holdAnimator.cancel();
+            holdAnimator = null;
+        }
+        if (holdShown) {
+            holdShown = false;
+            invalidate();
+        }
+    }
+
+    private void openMenu() {
+        holdAnimator = null;
+        holdShown = false;
+        holdProgress = 0f;
+        menuOpen = true;
+        menuChoice = 0;
+        swallowOkUp = true;   // OK is still held down
+        playSoundEffect(SoundEffectConstants.CLICK);
+        invalidate();
+    }
+
+    private void closeMenu() {
+        menuOpen = false;
+        swallowOkUp = false;
+        invalidate();
+    }
+
+    /** With the menu open the arrows move between its two lines and nothing else moves; Back closes it. */
+    private boolean menuKeyDown(int keyCode) {
+        switch (keyCode) {
+            case KeyEvent.KEYCODE_DPAD_UP:
+            case KeyEvent.KEYCODE_DPAD_LEFT:
+                if (menuChoice != 0) { menuChoice = 0; playSoundEffect(SoundEffectConstants.NAVIGATION_UP); invalidate(); }
+                return true;
+            case KeyEvent.KEYCODE_DPAD_DOWN:
+            case KeyEvent.KEYCODE_DPAD_RIGHT:
+                if (menuChoice != 1) { menuChoice = 1; playSoundEffect(SoundEffectConstants.NAVIGATION_DOWN); invalidate(); }
+                return true;
+            case KeyEvent.KEYCODE_DPAD_CENTER:
+            case KeyEvent.KEYCODE_ENTER:
+            case KeyEvent.KEYCODE_NUMPAD_ENTER:
+            case KeyEvent.KEYCODE_BACK:
+                return true;   // they act on release
+            default:
+                return false;
+        }
+    }
+
+    private void chooseMenu() {
+        boolean remove = menuChoice == 0;
+        closeMenu();
+        playSoundEffect(SoundEffectConstants.CLICK);
+        if (remove) removeSelected();
+    }
+
+    /** Takes the selected character off the lineup at once; the next one on its page (or a neighbour) is selected. */
+    private void removeSelected() {
+        if (selected < 0 || selected >= items.size()) return;
+        int gone = selected;
+        Watchlist.Item item = items.get(gone);
+        int next = Watchlist.afterRemoving(items, gone);
+        stopEffect();
+        if (selectAnimator != null) selectAnimator.cancel();
+        items.remove(gone);
+        figures = without(figures, gone, new Bitmap[figures.length - 1]);
+        glows = without(glows, gone, new Bitmap[glows.length - 1]);
+        tints = without(tints, gone, new PorterDuffColorFilter[tints.length - 1]);
+        float[] s = new float[selectedness.length - 1];
+        for (int i = 0, j = 0; i < selectedness.length; i++) if (i != gone) s[j++] = selectedness[i];
+        selectedness = s;
+        pages = Watchlist.pageCount(items);
+        selected = -1;
+        listener.onWatchlistRemove(item);
+        if (items.isEmpty()) {
+            invalidate();
+            listener.onWatchlistExit();
+            return;
+        }
+        select(next > gone ? next - 1 : next, true);
+        load();
+    }
+
+    private static <T> T[] without(T[] from, int gone, T[] to) {
+        for (int i = 0, j = 0; i < from.length; i++) if (i != gone) to[j++] = from[i];
+        return to;
+    }
+
+    /** The ring around the selected character's head while OK is held, over a dark disc so it reads on any scene. */
+    private void drawHoldRing(Canvas canvas, int w, int h) {
+        if (!holdShown || selected < 0) return;
+        Watchlist.Item it = items.get(selected);
+        drawnRect(selected, w, h, rect);
+        float cx = rect.left + it.headX * rect.width(), cy = rect.top + it.headY * rect.height();
+        float r = 26 * density, stroke = 5 * density;
+        cy = Math.max(r + 20 * density, cy);
+        ringPaint.setStyle(Paint.Style.FILL);
+        ringPaint.setColor(0x8C000000);
+        canvas.drawCircle(cx, cy, r + 9 * density, ringPaint);
+        ringPaint.setStyle(Paint.Style.STROKE);
+        ringPaint.setStrokeWidth(stroke);
+        ringPaint.setStrokeCap(Paint.Cap.ROUND);
+        ringPaint.setColor(0x4DFFFFFF);
+        canvas.drawCircle(cx, cy, r, ringPaint);
+        ringPaint.setColor(Color.WHITE);
+        glowRect.set(cx - r, cy - r, cx + r, cy + r);
+        canvas.drawArc(glowRect, -90f, 360f * holdProgress, false, ringPaint);
+    }
+
+    /** "Remove from watchlist" over "Cancel", in a small dark panel by the character; the chosen line is white. */
+    private void drawMenu(Canvas canvas, int w, int h) {
+        if (!menuOpen || selected < 0) return;
+        String[] lines = {getResources().getString(R.string.watchlist_remove),
+                getResources().getString(R.string.watchlist_remove_cancel)};
+        float pad = 28 * density, row = 58 * density, gap = 8 * density, inset = 10 * density;
+        float textW = Math.max(menuText.measureText(lines[0]), menuText.measureText(lines[1]));
+        float pw = textW + 2 * pad + 2 * inset, ph = 2 * row + gap + 2 * inset;
+        // The scene dims, and the panel sits under the title (placed as drawTitle places it).
+        menuPaint.setColor(0x73000000);
+        canvas.drawRect(0, 0, w, h, menuPaint);
+        figureRect(selected, w, h, rect);
+        float titleBaseline = Math.max(110 * density, rect.bottom - rect.height() * (1f + GROW) - 18 * density);
+        float margin = 60 * density;
+        float left = Math.max(margin, Math.min(w - margin - pw, rect.centerX() - pw / 2f));
+        float top = Math.min(h - margin - ph, titleBaseline + 30 * density);
+        menuPaint.setColor(0xF2111111);
+        glowRect.set(left, top, left + pw, top + ph);
+        canvas.drawRoundRect(glowRect, 18 * density, 18 * density, menuPaint);
+        Paint.FontMetrics fm = menuText.getFontMetrics();
+        for (int i = 0; i < 2; i++) {
+            float y = top + inset + i * (row + gap);
+            boolean on = i == menuChoice;
+            if (on) {
+                menuPaint.setColor(Color.WHITE);
+                glowRect.set(left + inset, y, left + pw - inset, y + row);
+                canvas.drawRoundRect(glowRect, row / 2f, row / 2f, menuPaint);
+            }
+            menuText.setColor(on ? 0xFF111111 : 0xD9FFFFFF);
+            float baseline = y + row / 2f - (fm.ascent + fm.descent) / 2f;
+            canvas.drawText(lines[i], left + inset + pad, baseline, menuText);
         }
     }
 
@@ -426,6 +628,8 @@ final class WatchlistView extends View {
             canvas.drawText(heading.toUpperCase(java.util.Locale.ROOT), 60 * density, 54 * density, headingPaint);
         }
         if (selected >= 0 && slide >= 1f) drawTitle(canvas, selected, w, h);
+        drawHoldRing(canvas, w, h);
+        drawMenu(canvas, w, h);
     }
 
     private void drawPage(Canvas canvas, int p, float dx, int w, int h) {
@@ -448,11 +652,17 @@ final class WatchlistView extends View {
     /** Small dots under the lineup when there is more than one page; the one on screen is white. */
     private void drawDots(Canvas canvas, int w, int h) {
         if (pages < 2) return;
+        // Only pages with someone on them (a page can empty out after removals on the TV).
+        List<Integer> shown = new ArrayList<>();
+        for (int p = 0; p < pages; p++) if (!Watchlist.onPage(items, p).isEmpty()) shown.add(p);
+        int n = shown.size();
+        if (n < 2) return;
         float r = 3.5f * density, gap = 14 * density;
-        float x0 = w / 2f - (pages - 1) * gap / 2f, y = h - 30 * density;
-        for (int p = 0; p < pages; p++) {
-            dotPaint.setColor(p == page ? 0xF2FFFFFF : 0x59FFFFFF);
-            canvas.drawCircle(x0 + p * gap, y, p == page ? r * 1.15f : r, dotPaint);
+        float x0 = w / 2f - (n - 1) * gap / 2f, y = h - 30 * density;
+        for (int k = 0; k < n; k++) {
+            boolean on = shown.get(k) == page;
+            dotPaint.setColor(on ? 0xF2FFFFFF : 0x59FFFFFF);
+            canvas.drawCircle(x0 + k * gap, y, on ? r * 1.15f : r, dotPaint);
         }
     }
 

@@ -172,6 +172,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private boolean inWatchlist;
     /** mood_deck: the deck under the watchlist, and whether the page is scrolled on down to it (inWatchlist stays true). */
     private MoodDeckView moodDeckView;
+    /** watchlist_remove: the config the lineup and deck were made from, and the titles taken off on this TV. */
+    private Config watchlistConfig;
+    private final Set<String> watchlistHidden = new HashSet<>();
     private boolean inDeck;
     private ValueAnimator pageScroll;
 
@@ -2744,14 +2747,20 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
     /** watchlist: the lineup sits under the page, a screen's height down, until Down from the dock scrolls to it. */
     private void setUpWatchlist(Config cfg) {
-        WatchlistView view = new WatchlistView(this, cfg.watchlistItems, cfg.dockLogos, cfg.watchlistHeading,
+        watchlistConfig = cfg;
+        watchlistHidden.clear();
+        // Titles removed here and not yet dropped by a push stay hidden (nothing is read with watchlist_remove off).
+        if (cfg.watchlistRemove) watchlistHidden.addAll(WatchlistRemovals.load(this, Config.dir(this)));
+        List<Watchlist.Item> items = WatchlistRemovals.without(cfg.watchlistItems, i -> i.key, watchlistHidden);
+        WatchlistView view = new WatchlistView(this, items, cfg.dockLogos, cfg.watchlistHeading,
                 UiFont.get(this, R.string.font_light), UiFont.get(this, R.string.font_medium), cfg.watchlistEffects,
-                new WatchlistView.Listener() {
+                cfg.watchlistRemove ? cfg.watchlistRemoveHoldMs : 0, new WatchlistView.Listener() {
             @Override public void onWatchlistExit() { exitWatchlist(true); }
             @Override public void onWatchlistOpen(Watchlist.Item item) {
                 openTitle(item.packageName, item.uri, item.component, item.flags, item.extras);
             }
             @Override public boolean onWatchlistDown() { return enterDeck(); }
+            @Override public void onWatchlistRemove(Watchlist.Item item) { removeFromWatchlist(item); }
         });
         if (view.isEmpty()) return;
         watchlistView = view;
@@ -2763,7 +2772,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
     /** mood_deck: the deck sits a screen's height under the lineup, until Down from any watchlist page scrolls to it. */
     private void setUpMoodDeck(Config cfg, ViewGroup content) {
-        MoodDeckView deck = new MoodDeckView(this, cfg.moodDeckTitles, cfg.moodDeckMoods, cfg.moodDeckHeading,
+        List<MoodDeck.Mood> moods = watchlistHidden.isEmpty() ? cfg.moodDeckMoods
+                : WatchlistRemovals.without(cfg.moodDeckMoods, cfg.moodDeckTitles, watchlistHidden);
+        if (moods.isEmpty()) return;
+        MoodDeckView deck = new MoodDeckView(this, cfg.moodDeckTitles, moods, cfg.moodDeckHeading,
                 UiFont.get(this, R.string.font_light), UiFont.get(this, R.string.font_medium), new MoodDeckView.Listener() {
             @Override public void onDeckUp() { exitDeck(); }
             @Override public void onDeckOpen(MoodDeck.Title t) { openTitle(t.packageName, t.uri, t.component, t.flags, t.extras); }
@@ -2772,6 +2784,22 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         moodDeckView = deck;
         content.addView(deck, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         deck.setVisibility(View.INVISIBLE);
+    }
+
+    /**
+     * watchlist_remove: a title held and removed on the lineup (which already hid it). Recorded for TV Studio, and
+     * the deck, off screen meanwhile, is made again without it.
+     */
+    private void removeFromWatchlist(Watchlist.Item item) {
+        watchlistHidden.add(item.key);
+        WatchlistRemovals.record(this, Config.dir(this), item.key, item.title, item.packageName);
+        if (moodDeckView == null || inDeck || watchlistConfig == null) return;
+        ViewGroup content = findViewById(android.R.id.content);
+        moodDeckView.release();
+        content.removeView(moodDeckView);
+        moodDeckView = null;
+        if (watchlistConfig.moodDeck) setUpMoodDeck(watchlistConfig, content);
+        if (moodDeckView != null) setPageScroll(-root.getTranslationY() / Math.max(1, root.getHeight()), root.getHeight());
     }
 
     /** Down from the lineup: the page moves on down to the deck; the lineup keeps its page and character. */
@@ -2918,7 +2946,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             int lastRowStart = ((count - 1) / COLUMNS) * COLUMNS;
             if (position >= lastRowStart) {
                 if (adapter.isLibraryAt(count)) focusLibrary();
-                else if (watchlistView != null) enterWatchlist(position);
+                else if (watchlistView != null && !watchlistView.isEmpty()) enterWatchlist(position);
                 return true;
             }
             target = Math.min(position + COLUMNS, count - 1);

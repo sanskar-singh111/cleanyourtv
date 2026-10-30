@@ -451,6 +451,13 @@
          each character then gets a short moment of about a second when selected, drawn with simple shapes. Needs the
          watchlist; off, nothing is read or drawn. -->
     <bool name="watchlist_effects">false</bool>
+    <!-- Remove from the TV (false, default). A theme sets "watchlist_remove": true: holding OK on a watchlist character
+         for "watchlist_remove_hold" seconds (1 to 30, 5 by default) fills a small ring, then offers "Remove from
+         watchlist" or "Cancel"; a short press still opens the title. A removed title is hidden at once and written to
+         watchlist_removed.json in the theme folder, for a tool such as TV Studio to take off the list on the computer
+         (the TV holds no login) and clear. Needs the watchlist; off, nothing is read, written or drawn. -->
+    <bool name="watchlist_remove">false</bool>
+    <integer name="watchlist_remove_hold">5</integer>
     <!-- Mood deck under the watchlist (false, default). A theme sets "mood_deck": true together with "mood_deck_moods"
          and "mood_deck_titles", which a tool such as TV Studio writes from the watchlist: a card per mood, Down from any
          watchlist page. Left throws the card away for the next mood, Right or OK spins a reel of its posters that lands

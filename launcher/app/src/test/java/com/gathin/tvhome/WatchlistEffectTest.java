@@ -84,12 +84,12 @@ public class WatchlistEffectTest {
     @Test
     public void theHeadIsGuessedWhenMissing() {
         Watchlist.Item none = new Watchlist.Item("a", new File("a.png"), null, null, 0, 1, 0, 0.5f, 1f, 0.5f,
-                "p", "u", null, 0, null, "", "Blood", null);
+                "p", "u", null, 0, null, "", "Blood", null, null);
         assertEquals(WatchlistEffect.BLOOD, none.effect);
         assertEquals(0.5f, none.headX, 0f);
         assertEquals(0.12f, none.headY, 0f);
         Watchlist.Item given = new Watchlist.Item("b", new File("b.png"), null, null, 0, 1, 0, 0.5f, 1f, 0.5f,
-                "p", "u", null, 0, null, "", "nope", new float[]{0.3f, 0.2f, 0.1f});
+                "p", "u", null, 0, null, "", "nope", new float[]{0.3f, 0.2f, 0.1f}, null);
         assertNull(given.effect);
         assertEquals(0.3f, given.headX, 0f);
         assertEquals(0.2f, given.headY, 0f);

@@ -260,6 +260,12 @@ final class Config {
     final String watchlistHeading;
     /** watchlist_effects: each character's small moment when it is selected (config.xml watchlist_effects). */
     final boolean watchlistEffects;
+    /**
+     * watchlist_remove: holding OK on a character for watchlistRemoveHoldMs offers to take it off the watchlist
+     * (config.xml watchlist_remove, watchlist_remove_hold).
+     */
+    final boolean watchlistRemove;
+    final int watchlistRemoveHoldMs;
     /** The mood deck under the watchlist (config.xml mood_deck), its moods, the titles they hold and its heading. */
     final boolean moodDeck;
     final List<MoodDeck.Mood> moodDeckMoods;
@@ -286,7 +292,7 @@ final class Config {
                    int glowStrength, int glowSize, int focusGrow, int focusGrowMs, String screensaver, int screensaverDim,
                    int screensaverFadeMs, int screensaverSlideMinutes, List<File> screensaverImages,
                    boolean watchlist, List<Watchlist.Item> watchlistItems, String watchlistHeading, boolean watchlistEffects,
-                   boolean moodDeck, MoodDeckData moodDeckData, String moodDeckHeading) {
+                   boolean watchlistRemove, int watchlistRemoveHoldSeconds, boolean moodDeck, MoodDeckData moodDeckData, String moodDeckHeading) {
         this.watchlist = watchlist && !watchlistItems.isEmpty();
         this.moodDeckMoods = Collections.unmodifiableList(MoodDeck.usable(moodDeckData.moods));
         this.moodDeckTitles = Collections.unmodifiableList(moodDeckData.titles);
@@ -295,6 +301,8 @@ final class Config {
         this.watchlistItems = Collections.unmodifiableList(watchlistItems);
         this.watchlistHeading = watchlistHeading == null ? "" : watchlistHeading;
         this.watchlistEffects = watchlistEffects && this.watchlist;
+        this.watchlistRemove = watchlistRemove && this.watchlist;
+        this.watchlistRemoveHoldMs = watchlistRemoveHoldSeconds * 1000;
         this.glowStrength = glowStrength;
         this.glowSize = glowSize;
         this.focusGrow = focusGrow;
@@ -518,6 +526,8 @@ final class Config {
         boolean watchlist = res.getBoolean(R.bool.watchlist);
         String watchlistHeading = "";
         boolean watchlistEffects = res.getBoolean(R.bool.watchlist_effects);
+        boolean watchlistRemove = res.getBoolean(R.bool.watchlist_remove);
+        int watchlistRemoveHold = res.getInteger(R.integer.watchlist_remove_hold);
         boolean moodDeck = res.getBoolean(R.bool.mood_deck);
         String moodDeckHeading = "";
         boolean applied = false;
@@ -628,6 +638,9 @@ final class Config {
             watchlist = bool(json, "watchlist", watchlist);
             watchlistHeading = string(json, "watchlist_heading", watchlistHeading);
             watchlistEffects = bool(json, "watchlist_effects", watchlistEffects);
+            watchlistRemove = bool(json, "watchlist_remove", watchlistRemove);
+            watchlistRemoveHold = integer(json, "watchlist_remove_hold", watchlistRemoveHold,
+                    WatchlistRemovals.HOLD_MIN_S, WatchlistRemovals.HOLD_MAX_S);
             moodDeck = bool(json, "mood_deck", moodDeck);
             moodDeckHeading = string(json, "mood_deck_heading", moodDeckHeading);
         }
@@ -699,7 +712,8 @@ final class Config {
                         ? WallpaperRotation.images(new File(dir, Screensaver.FOLDER)) : new ArrayList<>(),
                 // Nothing is read unless the watchlist is on.
                 watchlist, watchlist && json != null ? watchlistItems(json, dir, watchlistEffects) : new ArrayList<>(), watchlistHeading,
-                watchlistEffects,
+                watchlistEffects, watchlistRemove,
+                clamp(watchlistRemoveHold, WatchlistRemovals.HOLD_MIN_S, WatchlistRemovals.HOLD_MAX_S),
                 // Nor of the deck unless it and the watchlist are on.
                 moodDeck, moodDeck && watchlist && json != null ? moodDeck(json, dir) : new MoodDeckData(), moodDeckHeading);
     }
@@ -769,10 +783,10 @@ final class Config {
      * "scene": "watchlist/tv-1396-bg.jpg", "color": "#2CD93A", "page": 0, "row": 0, "x": 0.5, "bottom": 0.84, "height": 0.5,
      * "package": "com.netflix.ninja", "uri": "https://www.netflix.com/title/70143836",
      * "component": "com.netflix.ninja/.MainActivity", "flags": 276856832, "extras": {"source": "30"}, "app": "Netflix",
-     * "effect": "blood", "head": [0.49, 0.19, 0.15]}]}.
+     * "effect": "blood", "head": [0.49, 0.19, 0.15], "key": "tv-1396"}]}.
      * An item without its picture is left out on its own; row 0 is the back row, 1 the front; flags are the intent's
      * (a number, or text such as "0x10808000"). "effect" and "head" (the head's centre across and down the picture and
-     * its height, 0 to 1) are read only with watchlist_effects on.
+     * its height, 0 to 1) are read only with watchlist_effects on. "key" names the title for watchlist_remove.
      */
     private static List<Watchlist.Item> watchlistItems(JSONObject json, File dir, boolean effects) {
         List<Watchlist.Item> out = new ArrayList<>();
@@ -801,7 +815,8 @@ final class Config {
                     o.optInt("row", Watchlist.FRONT), o.optInt("page", 0), (float) o.optDouble("x", 0.5),
                     (float) o.optDouble("bottom", 1.0), (float) o.optDouble("height", 0.5), o.optString("package", ""),
                     o.optString("uri", ""), component.isEmpty() ? null : component, intentFlags(o.opt("flags")), extras,
-                    o.optString("app", ""), effects ? o.optString("effect", null) : null, effects ? head(o.optJSONArray("head")) : null));
+                    o.optString("app", ""), effects ? o.optString("effect", null) : null, effects ? head(o.optJSONArray("head")) : null,
+                    o.optString("key", "")));
         }
         return out;
     }
@@ -875,6 +890,11 @@ final class Config {
 
     private static String fileStamp(File file) {
         return file != null && file.isFile() ? file.length() + "@" + file.lastModified() : "absent";
+    }
+
+    /** The theme revision the tools last wrote into `dir` ("absent" when there is none). */
+    static String themeRevision(File dir) {
+        return revisionToken(dir == null ? null : new File(dir, THEME_REVISION_NAME));
     }
 
     private static String revisionToken(File file) {
