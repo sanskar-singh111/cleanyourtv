@@ -9,14 +9,22 @@ import java.util.Set;
  * it can be tested without a TV.
  */
 final class MoodShelf {
-    /** Posters drawn on each side of the centre one (the outer ones partly off screen). */
-    static final int SIDE = 2;
+    /** Posters drawn on each side of the centre one: the row fills the screen, the outer ones at its edges. */
+    static final int SIDE = 4;
     /** Kept decoded beyond those: the next one each way, so a move never shows an empty frame. */
     static final int AHEAD = 1;
     /** From this many posters the row goes round (fewer would show the same poster twice on screen). */
     static final int ROUND_FROM = 2 * SIDE + 2;
     /** Moving on by itself: a rest, then a slow glide to the next poster. */
     static final long REST_MS = 2600, GLIDE_MS = 1100, MOVE_MS = 320;
+    /**
+     * Where a poster sits and how it looks by how far it is from the centre (0 the centre, 1 its neighbour, ...), as in
+     * the reference picture: the posters touch, each drawn under the one nearer the centre. Across, in shares of the
+     * screen's height from its middle; size against the centre poster; how much darker it is.
+     */
+    private static final float[] PLACE = {0f, 0.235f, 0.425f, 0.60f, 0.76f, 0.905f};
+    private static final float[] SCALE = {1f, 0.90f, 0.78f, 0.70f, 0.64f, 0.60f};
+    private static final float[] DIM = {0f, 0.06f, 0.12f, 0.26f, 0.42f, 0.60f};
 
     private MoodShelf() {}
 
@@ -52,6 +60,25 @@ final class MoodShelf {
             while (d < -count / 2f) d += count;
         }
         return d;
+    }
+
+    static float place(float distance) {
+        return along(PLACE, distance);
+    }
+
+    static float scale(float distance) {
+        return along(SCALE, distance);
+    }
+
+    static float dim(float distance) {
+        return along(DIM, distance);
+    }
+
+    /** The table's value at a distance between its steps; past its end, its last value. */
+    private static float along(float[] table, float distance) {
+        float at = Math.max(0f, Math.min(table.length - 1f, distance));
+        int i = Math.min(table.length - 2, (int) at);
+        return table[i] + (table[i + 1] - table[i]) * (at - i);
     }
 
     /** The posters to hold decoded around the centre: those on screen and one more each way. */

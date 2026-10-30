@@ -12,6 +12,7 @@ import android.graphics.BitmapShader;
 import android.graphics.Camera;
 import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.CornerPathEffect;
 import android.graphics.LinearGradient;
 import android.graphics.Matrix;
 import android.graphics.Paint;
@@ -41,9 +42,9 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * mood_posters: a mood's posters in a row, opened from its card on the mood deck. The centre poster is the biggest,
- * with a play icon; its neighbours are smaller and turned slightly towards it, and the ones further out fade at the
- * screen's edges. Behind, the centre title's darkened black-and-white backdrop. The row moves on slowly by itself until
+ * mood_posters: a mood's posters in a row across the whole screen, opened from its card on the mood deck. The centre
+ * poster is the biggest, with a play icon; the others touch, each smaller and darker than the last, turned so their
+ * outer edges are further away, and the outermost fade at the screen's edges. Behind, the centre title's darkened black-and-white backdrop. The row moves on slowly by itself until
  * a key is pressed. Left and Right browse, OK opens the centre title, Down goes to "Surprise me" (the deck's reel and
  * countdown), Up or Back go back to the cards. With mood_watched, holding OK on the centre poster offers "I've watched
  * it". Only the posters on screen and one more each way are decoded, and at most the two backdrops of a crossfade.
@@ -61,7 +62,9 @@ final class MoodShelfView extends View {
     }
 
     private static final long BACKDROP_MS = 450, RING_DELAY_MS = 350, FOCUS_MS = 180;
-    private static final float TILT_DEGREES = 24f;
+    private static final float TILT_DEGREES = 32f;
+    /** The play triangle's height against the centre poster's, as in the reference picture. */
+    private static final float PLAY_SHARE = 0.54f;
 
     private final List<MoodDeck.Title> titles;
     private final Listener listener;
@@ -76,7 +79,6 @@ final class MoodShelfView extends View {
     private final Paint backdropPaint = new Paint(Paint.FILTER_BITMAP_FLAG);
     private final Paint shadePaint = new Paint();
     private final Paint glowPaint = new Paint();
-    private final Paint iconPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint buttonPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint ringPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint menuPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -87,6 +89,7 @@ final class MoodShelfView extends View {
     private final TextPaint buttonText = new TextPaint(Paint.ANTI_ALIAS_FLAG);
     private final RectF rect = new RectF();
     private final Path triangle = new Path();
+    private final Paint playPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Matrix shaderMatrix = new Matrix(), tilt = new Matrix();
     private final Camera camera = new Camera();
     private final Map<Bitmap, BitmapShader> posterShaders = new HashMap<>();
@@ -130,7 +133,7 @@ final class MoodShelfView extends View {
     private int glowColor;
 
     // Geometry, from the view's height (a 1080-line screen is the reference).
-    private float rowY, ph, pw, near, far, iconR;
+    private float rowY, ph, pw, playH;
 
     MoodShelfView(Context context, List<MoodDeck.Title> titles, String heading, Typeface lightFont, Typeface mediumFont,
                   long watchedHoldMs, Listener listener) {
@@ -156,7 +159,8 @@ final class MoodShelfView extends View {
         buttonText.setLetterSpacing(0.04f);
         placeholderPaint.setColor(0x1AFFFFFF);
         dimPaint.setColor(Color.BLACK);
-        iconPaint.setStrokeCap(Paint.Cap.ROUND);
+        playPaint.setStyle(Paint.Style.FILL);
+        playPaint.setColor(Color.WHITE);
         ringPaint.setStrokeCap(Paint.Cap.ROUND);
     }
 
@@ -547,20 +551,27 @@ final class MoodShelfView extends View {
     @Override
     protected void onSizeChanged(int w, int h, int oldw, int oldh) {
         super.onSizeChanged(w, h, oldw, oldh);
-        rowY = 0.50f * h;
-        ph = 0.46f * h;
+        rowY = 0.465f * h;
+        ph = 0.42f * h;
         pw = ph * 2f / 3f;
-        near = 0.34f * h;   // centre to a neighbour
-        far = 0.25f * h;    // each poster further out
-        iconR = 0.044f * h;
-        headingPaint.setTextSize(0.030f * h);
-        namePaint.setTextSize(0.062f * h);
-        titlePaint.setTextSize(0.040f * h);
-        smallPaint.setTextSize(0.020f * h);
-        buttonText.setTextSize(0.024f * h);
-        camera.setLocation(0, 0, -12f * density / 2f);
-        shadePaint.setShader(new LinearGradient(0, 0, 0, h, new int[]{0xCC000000, 0x33000000, 0x22000000, 0xE6000000},
-                new float[]{0f, 0.24f, 0.62f, 1f}, Shader.TileMode.CLAMP));
+        headingPaint.setTextSize(0.032f * h);
+        namePaint.setTextSize(0.056f * h);
+        titlePaint.setTextSize(0.036f * h);
+        smallPaint.setTextSize(0.019f * h);
+        buttonText.setTextSize(0.026f * h);
+        // Further from the screen than the default, so a turned poster's far edge is only a little shorter.
+        camera.setLocation(0, 0, -24f * h / 1080f);
+        shadePaint.setShader(new LinearGradient(0, 0, 0, h, new int[]{0xB3000000, 0x14000000, 0x14000000, 0x8C000000},
+                new float[]{0f, 0.22f, 0.80f, 1f}, Shader.TileMode.CLAMP));
+        // A solid rounded triangle, standing on its centre.
+        playH = PLAY_SHARE * ph;
+        float half = playH / 2f, wide = playH * 0.96f;
+        triangle.reset();
+        triangle.moveTo(-wide * 0.40f, -half);
+        triangle.lineTo(wide * 0.60f, 0f);
+        triangle.lineTo(-wide * 0.40f, half);
+        triangle.close();
+        playPaint.setPathEffect(new CornerPathEffect(0.16f * playH));
         glowPaint.setShader(null);
     }
 
@@ -576,23 +587,23 @@ final class MoodShelfView extends View {
         if (glowPaint.getShader() == null || glowColor != mood.color) {
             glowColor = mood.color;
             glowPaint.setShader(new RadialGradient(w / 2f, rowY, 0.55f * h,
-                    new int[]{withAlpha(mood.color, 0x30), withAlpha(mood.color, 0x0C), withAlpha(mood.color, 0)},
+                    new int[]{withAlpha(mood.color, 0x1C), withAlpha(mood.color, 0x08), withAlpha(mood.color, 0)},
                     new float[]{0f, 0.45f, 1f}, Shader.TileMode.CLAMP));
         }
         canvas.drawRect(0, 0, w, h, glowPaint);
 
         if (!heading.isEmpty()) {
             headingPaint.setAlpha(0xC0);
-            canvas.drawText(heading, (w - headingPaint.measureText(heading)) / 2f, 0.072f * h, headingPaint);
+            canvas.drawText(heading, (w - headingPaint.measureText(heading)) / 2f, 0.066f * h, headingPaint);
         }
         String name = TextUtils.ellipsize(mood.name, namePaint, w * 0.8f, TextUtils.TruncateAt.END).toString();
         namePaint.setAlpha(0xFF);
         float nw = namePaint.measureText(name);
-        canvas.drawText(name, (w - nw) / 2f, 0.150f * h, namePaint);
+        canvas.drawText(name, (w - nw) / 2f, 0.134f * h, namePaint);
         buttonPaint.setStyle(Paint.Style.FILL);
         buttonPaint.setColor(mood.color);
         float bar = 0.045f * h;
-        rect.set((w - bar) / 2f, 0.172f * h, (w + bar) / 2f, 0.172f * h + 0.0045f * h);
+        rect.set((w - bar) / 2f, 0.153f * h, (w + bar) / 2f, 0.153f * h + 0.0045f * h);
         canvas.drawRoundRect(rect, rect.height(), rect.height(), buttonPaint);
 
         drawRow(canvas, w, h);
@@ -624,14 +635,15 @@ final class MoodShelfView extends View {
 
     private void drawPoster(Canvas canvas, int item, float d, int w, int h) {
         float a = Math.abs(d);
-        float near1 = Math.min(1f, a), beyond = Math.max(0f, Math.min(1f, a - 1f));
-        float scale = 1f - 0.28f * near1 - 0.12f * beyond;
-        float x = w / 2f + Math.signum(d) * (near * near1 + far * Math.max(0f, a - 1f));
-        // Fading out past the second poster each side, at the screen's edges.
+        float near1 = Math.min(1f, a);
+        float scale = MoodShelf.scale(a);
+        float x = w / 2f + Math.signum(d) * MoodShelf.place(a) * h;
+        // Fading out past the last poster each side, at the screen's edges.
         float fade = Math.max(0f, Math.min(1f, MoodShelf.SIDE + 1f - a));
         int alpha = Math.round(255 * fade);
         if (alpha <= 0) return;
-        float degrees = -Math.signum(d) * TILT_DEGREES * near1;
+        // Turned so its outer edge is further away: the row curves back from the centre.
+        float degrees = Math.signum(d) * TILT_DEGREES * near1;
         canvas.save();
         canvas.translate(x, rowY);
         if (degrees != 0f) {
@@ -643,7 +655,7 @@ final class MoodShelfView extends View {
         }
         float hw = pw * scale / 2f, hh = ph * scale / 2f;
         rect.set(-hw, -hh, hw, hh);
-        float rr = 0.012f * h;
+        float rr = 0.008f * h;
         Bitmap b = posters.get(items.get(item));
         if (b == null) {
             placeholderPaint.setAlpha(Math.round(0x1A * fade));
@@ -661,45 +673,28 @@ final class MoodShelfView extends View {
             posterPaint.setAlpha(alpha);
             canvas.drawRoundRect(rect, rr, rr, posterPaint);
         }
-        // The neighbours sit a little darker; the centre one is untouched.
-        float dim = 0.32f * near1 + 0.22f * beyond;
+        // Each poster out is a little darker; the centre one is untouched.
+        float dim = MoodShelf.dim(a);
         if (dim > 0f) {
             dimPaint.setAlpha(Math.round(255 * dim * fade));
             canvas.drawRoundRect(rect, rr, rr, dimPaint);
         }
         // The play icon on the centre poster (fading as it moves away).
         float icon = Math.max(0f, 1f - a * 2f) * (1f - buttonFocus * 0.6f);
-        if (icon > 0f) drawPlay(canvas, icon, h);
+        if (icon > 0f) {
+            playPaint.setAlpha(Math.round(0xE0 * icon));
+            canvas.drawPath(triangle, playPaint);
+        }
         if (holdShown && a < 0.01f) drawRing(canvas);
         canvas.restore();
     }
 
-    private void drawPlay(Canvas canvas, float alpha, int h) {
-        iconPaint.setStyle(Paint.Style.FILL);
-        iconPaint.setColor(Color.BLACK);
-        iconPaint.setAlpha(Math.round(0x73 * alpha));
-        canvas.drawCircle(0, 0, iconR, iconPaint);
-        iconPaint.setStyle(Paint.Style.STROKE);
-        iconPaint.setStrokeWidth(Math.max(2f, 0.0028f * h));
-        iconPaint.setColor(Color.WHITE);
-        iconPaint.setAlpha(Math.round(0xE6 * alpha));
-        canvas.drawCircle(0, 0, iconR, iconPaint);
-        float t = iconR * 0.42f;
-        triangle.reset();
-        triangle.moveTo(-t * 0.62f, -t);
-        triangle.lineTo(t * 1.05f, 0);
-        triangle.lineTo(-t * 0.62f, t);
-        triangle.close();
-        iconPaint.setStyle(Paint.Style.FILL);
-        canvas.drawPath(triangle, iconPaint);
-    }
-
     /** The ring around the play icon while OK is held. */
     private void drawRing(Canvas canvas) {
-        float r = iconR + 9 * density, stroke = 5 * density;
+        float r = playH * 0.66f, stroke = 6 * density;
         ringPaint.setStyle(Paint.Style.STROKE);
         ringPaint.setStrokeWidth(stroke);
-        ringPaint.setColor(0x4DFFFFFF);
+        ringPaint.setColor(0x8C000000);
         canvas.drawCircle(0, 0, r, ringPaint);
         ringPaint.setColor(Color.WHITE);
         rect.set(-r, -r, r, r);
@@ -714,25 +709,29 @@ final class MoodShelfView extends View {
             int a = Math.round(255 * settle);
             String title = TextUtils.ellipsize(t.title, titlePaint, w * 0.7f, TextUtils.TruncateAt.END).toString();
             titlePaint.setAlpha(a);
-            canvas.drawText(title, (w - titlePaint.measureText(title)) / 2f, 0.797f * h, titlePaint);
+            canvas.drawText(title, (w - titlePaint.measureText(title)) / 2f, 0.755f * h, titlePaint);
             String meta = t.year.isEmpty() ? t.appName.toUpperCase(Locale.ROOT)
                     : t.appName.isEmpty() ? t.year : t.year + "  ·  " + t.appName.toUpperCase(Locale.ROOT);
             smallPaint.setAlpha(Math.round(a * 0.7f));
-            canvas.drawText(meta, (w - smallPaint.measureText(meta)) / 2f, 0.838f * h, smallPaint);
+            canvas.drawText(meta, (w - smallPaint.measureText(meta)) / 2f, 0.795f * h, smallPaint);
         }
         // "Surprise me": an outline at rest, white when Down moved the focus to it.
         String label = getResources().getString(R.string.shelf_surprise);
-        float tw = buttonText.measureText(label), bh = 0.054f * h, bw = tw + 0.07f * h, by = 0.902f * h;
+        float tw = buttonText.measureText(label), bh = 0.070f * h, bw = tw + 0.10f * h, by = 0.880f * h;
         rect.set((w - bw) / 2f, by - bh / 2f, (w + bw) / 2f, by + bh / 2f);
         buttonPaint.setStyle(Paint.Style.FILL);
         buttonPaint.setColor(Color.WHITE);
-        buttonPaint.setAlpha(Math.round(0x1F + (0xFF - 0x1F) * buttonFocus));
+        buttonPaint.setAlpha(Math.round(0x24 + (0xFF - 0x24) * buttonFocus));
         canvas.drawRoundRect(rect, bh / 2f, bh / 2f, buttonPaint);
-        buttonText.setColor((int) argb.evaluate(buttonFocus, 0xD9FFFFFF, 0xFF0C0C0E));
+        buttonPaint.setStyle(Paint.Style.STROKE);
+        buttonPaint.setStrokeWidth(Math.max(1f, 0.0014f * h));
+        buttonPaint.setAlpha(0x4D);
+        canvas.drawRoundRect(rect, bh / 2f, bh / 2f, buttonPaint);
+        buttonText.setColor((int) argb.evaluate(buttonFocus, 0xE6FFFFFF, 0xFF0C0C0E));
         canvas.drawText(label, (w - tw) / 2f, by + buttonText.getTextSize() * 0.36f, buttonText);
         String keys = getResources().getString(onButton ? R.string.shelf_keys_button : R.string.shelf_keys);
         smallPaint.setAlpha(0x80);
-        canvas.drawText(keys, (w - smallPaint.measureText(keys)) / 2f, 0.968f * h, smallPaint);
+        canvas.drawText(keys, (w - smallPaint.measureText(keys)) / 2f, 0.962f * h, smallPaint);
     }
 
     /** "I've watched it" over "Cancel", in a small dark panel on the centre poster; the chosen line is white. */

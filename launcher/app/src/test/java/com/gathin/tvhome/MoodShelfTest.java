@@ -44,10 +44,26 @@ public class MoodShelfTest {
     @Test
     public void onlyThePostersOnScreenAndOneMoreEachWayAreKept() {
         Set<Integer> want = MoodShelf.wanted(0, 20);
-        assertEquals(new HashSet<>(Arrays.asList(0, 1, 2, 3, 19, 18, 17)), want);
+        assertEquals(new HashSet<>(Arrays.asList(0, 1, 2, 3, 4, 5, 19, 18, 17, 16, 15)), want);
         assertEquals(2 * (MoodShelf.SIDE + MoodShelf.AHEAD) + 1, want.size());
         assertEquals(new HashSet<>(Arrays.asList(0, 1, 2)), MoodShelf.wanted(0, 3));
         assertTrue(MoodShelf.wanted(-1, 5).isEmpty());
+    }
+
+    @Test
+    public void postersGetSmallerAndDarkerAwayFromTheCentreAndTouch() {
+        assertEquals(1f, MoodShelf.scale(0f), 0f);
+        assertEquals(0f, MoodShelf.dim(0f), 0f);
+        assertEquals(0f, MoodShelf.place(0f), 0f);
+        float halfWidth = 0.14f;   // the centre poster's, in shares of the screen's height
+        for (float d = 0f; d < MoodShelf.SIDE; d += 1f) {
+            assertTrue(MoodShelf.scale(d + 1f) < MoodShelf.scale(d));
+            assertTrue(MoodShelf.dim(d + 1f) > MoodShelf.dim(d));
+            float gap = MoodShelf.place(d + 1f) - MoodShelf.place(d);
+            assertTrue("no gap between posters, turned and all", gap < halfWidth * (MoodShelf.scale(d) + MoodShelf.scale(d + 1f)));
+        }
+        assertEquals("halfway between two", (MoodShelf.scale(1f) + MoodShelf.scale(2f)) / 2f, MoodShelf.scale(1.5f), 0.0001f);
+        assertEquals("past the end, the last value", MoodShelf.scale(5f), MoodShelf.scale(9f), 0f);
     }
 
     @Test
