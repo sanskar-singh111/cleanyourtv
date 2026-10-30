@@ -55,6 +55,10 @@ def put(name):
             f"*'Unsupported operation'*) false ;; esac; }} || cp {s} {DIR}/{name} 2>/dev/null; rm -f {s}")
 
 
+# Files removed per shell call.
+DELETE_BATCH = 30
+
+
 def delete(name):
     """theme.sh's del()."""
     return f"rm -f {DIR}/{name} 2>/dev/null; content delete --uri {URI}/{name} 2>/dev/null"
@@ -208,8 +212,11 @@ def main():
             dev.shell(put(name), read_timeout_s=max(30.0, os.path.getsize(local[name]) / 1e6 * 4.0))
             sent_bytes += os.path.getsize(local[name])
         if stale:
-            # Each `content delete` starts a process (about a second on a TV): give the whole batch its time.
-            dev.shell("; ".join(delete(n) for n in stale), read_timeout_s=max(30.0, 3.0 * len(stale)))
+            # Each `content delete` starts a process (about a second on a TV), so a long list goes in batches: one
+            # shell call that runs for minutes outlives the connection's read timeout.
+            for i in range(0, len(stale), DELETE_BATCH):
+                batch = stale[i:i + DELETE_BATCH]
+                dev.shell("; ".join(delete(n) for n in batch), read_timeout_s=max(30.0, 3.0 * len(batch)))
         if changed and remote is not None:
             # The TV's copy now matches, file by file.
             after = remote_sums(dev) or {}

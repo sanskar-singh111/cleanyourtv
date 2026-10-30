@@ -542,24 +542,6 @@ final class MoodShelfView extends View {
         invalidate();
     }
 
-    /** A title gone from every mood elsewhere (or watched here): out of this row too. */
-    void hide(Set<String> keys) {
-        boolean changed = false;
-        for (int k = items.size() - 1; k >= 0; k--) {
-            MoodDeck.Title t = titles.get(items.get(k));
-            if (keys.contains(WatchlistRemovals.keyOf(t.key, t.title))) {
-                centre = MoodShelf.afterRemoving(k, centre, items.size());
-                items.remove(k);
-                changed = true;
-            }
-        }
-        if (!changed) return;
-        position = Math.max(0, centre);
-        loadPosters();
-        showBackdrop(true);
-        invalidate();
-    }
-
     // ---- drawing ---------------------------------------------------------------------------------
 
     @Override
@@ -753,7 +735,7 @@ final class MoodShelfView extends View {
         canvas.drawText(keys, (w - smallPaint.measureText(keys)) / 2f, 0.968f * h, smallPaint);
     }
 
-    /** "I've watched it" over "Cancel", in a small dark panel under the centre poster; the chosen line is white. */
+    /** "I've watched it" over "Cancel", in a small dark panel on the centre poster; the chosen line is white. */
     private void drawMenu(Canvas canvas, int w, int h) {
         if (!menuOpen) return;
         String[] lines = {getResources().getString(R.string.shelf_watched),
@@ -764,7 +746,7 @@ final class MoodShelfView extends View {
         float pad = 0.03f * h, row = 0.058f * h, gap = 0.008f * h, inset = 0.01f * h;
         float textW = Math.max(buttonText.measureText(lines[0]), buttonText.measureText(lines[1]));
         float mw = textW + 2 * pad + 2 * inset, mh = 2 * row + gap + 2 * inset;
-        float left = (w - mw) / 2f, top = rowY + ph / 2f - mh * 0.15f;
+        float left = (w - mw) / 2f, top = rowY - mh / 2f;
         rect.set(left, top, left + mw, top + mh);
         menuPaint.setColor(0xF2141416);
         canvas.drawRoundRect(rect, 0.016f * h, 0.016f * h, menuPaint);
