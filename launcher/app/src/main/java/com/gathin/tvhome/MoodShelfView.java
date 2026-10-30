@@ -43,7 +43,7 @@ import java.util.Set;
 
 /**
  * mood_posters: a mood's posters in a row across the whole screen, opened from its card on the mood deck. The centre
- * poster is the biggest, with a play icon; the others touch, each smaller and darker than the last, turned so their
+ * poster is the biggest, with a small play icon; the others touch, each smaller and darker than the last, turned so their
  * outer edges are further away, and the outermost fade at the screen's edges. Behind, the centre title's darkened black-and-white backdrop. The row moves on slowly by itself until
  * a key is pressed. Left and Right browse, OK opens the centre title, Down goes to "Surprise me" (the deck's reel and
  * countdown), Up or Back go back to the cards. With mood_watched, holding OK on the centre poster offers "I've watched
@@ -63,8 +63,9 @@ final class MoodShelfView extends View {
 
     private static final long BACKDROP_MS = 450, RING_DELAY_MS = 350, FOCUS_MS = 180;
     private static final float TILT_DEGREES = 32f;
-    /** The play triangle's height against the centre poster's, as in the reference picture. */
-    private static final float PLAY_SHARE = 0.54f;
+    /** The play triangle's height against the centre poster's, and how solid it is (slightly see-through). */
+    private static final float PLAY_SHARE = 0.18f;
+    private static final int PLAY_ALPHA = 0xB8;
 
     private final List<MoodDeck.Title> titles;
     private final Listener listener;
@@ -682,7 +683,7 @@ final class MoodShelfView extends View {
         // The play icon on the centre poster (fading as it moves away).
         float icon = Math.max(0f, 1f - a * 2f) * (1f - buttonFocus * 0.6f);
         if (icon > 0f) {
-            playPaint.setAlpha(Math.round(0xE0 * icon));
+            playPaint.setAlpha(Math.round(PLAY_ALPHA * icon));
             canvas.drawPath(triangle, playPaint);
         }
         if (holdShown && a < 0.01f) drawRing(canvas);
@@ -691,7 +692,7 @@ final class MoodShelfView extends View {
 
     /** The ring around the play icon while OK is held. */
     private void drawRing(Canvas canvas) {
-        float r = playH * 0.66f, stroke = 6 * density;
+        float r = playH * 0.95f, stroke = 5 * density;
         ringPaint.setStyle(Paint.Style.STROKE);
         ringPaint.setStrokeWidth(stroke);
         ringPaint.setColor(0x8C000000);

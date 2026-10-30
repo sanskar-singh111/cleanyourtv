@@ -468,7 +468,7 @@
     <bool name="mood_deck">false</bool>
     <!-- Mood posters (false, default). A theme sets "mood_posters": true with the mood deck: Right or OK on a mood card
          opens a row of that mood's posters instead of spinning: touching posters across the screen, the centre one biggest
-         with a large play triangle, the others smaller and angled, the centre title's darkened backdrop behind. The row moves on slowly by itself until a key
+         with a small play triangle, the others smaller and angled, the centre title's darkened backdrop behind. The row moves on slowly by itself until a key
          is pressed. Left and Right browse, OK opens the centre title, Down goes to "Surprise me" (the reel and countdown
          of the deck), Up or Back return to the cards. Only the posters on screen and their neighbours are decoded.
          Optional "mood_posters_heading" is the line above the mood's name (the deck's heading when it is empty). -->
