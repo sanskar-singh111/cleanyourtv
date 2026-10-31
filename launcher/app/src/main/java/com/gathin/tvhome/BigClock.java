@@ -32,6 +32,9 @@ final class BigClock {
     /** The glass digits and how they were made; another look's digits are laid over them while the look changes. */
     private GlassDigits glassDigits, nextDigits;
     private File glassPicture;
+    /** How far the look's change has come, and whether nextDigits has its picture. */
+    private float glassFade;
+    private boolean nextReady;
     private final Typeface digitsFont;
     private final int opacityPercent, shine;
     private final float textSize;
@@ -106,25 +109,34 @@ final class BigClock {
         digits.setTextSize(TypedValue.COMPLEX_UNIT_PX, textSize);
     }
 
-    /** weather_scene: the glass made from another sky. A second set of digits fades in over the first, then takes its place. */
-    void glass(File picture, int fadeMs) {
+    /** weather_scene: the glass made from another sky, a second set of digits laid over the first for glassFade to bring in. */
+    void glass(File picture) {
         if (glassDigits == null || picture == null || picture.equals(glassPicture)) return;
         glassPicture = picture;
         Context context = view.getContext();
-        if (nextDigits != null) {
-            nextDigits.animate().cancel();
-            view.removeView(nextDigits);
-        }
+        if (nextDigits != null) view.removeView(nextDigits);
+        glassFade = 0;
+        nextReady = false;
         GlassDigits next = new GlassDigits(context, shine, DIGITS_SHADOW, DIGITS_SHADOW_DP);
         nextDigits = next;
         style(next, context.getResources().getDisplayMetrics().density);
-        view.addView(next, view.indexOfChild(glassDigits) + 1, new FrameLayout.LayoutParams(glassDigits.getLayoutParams()));
-        next.load(picture, opacityPercent, fadeMs, () -> {
+        view.addView(next, view.indexOfChild(glassDigits) + 1, new FrameLayout.LayoutParams((FrameLayout.LayoutParams) glassDigits.getLayoutParams()));
+        next.load(picture, opacityPercent, () -> {
             if (nextDigits != next) return;
-            nextDigits = null;
-            view.removeView(glassDigits);
-            glassDigits = next;
+            nextReady = true;
+            glassFade(glassFade);
         });
+    }
+
+    /** How much of the new digits shows, 0 to 1; at 1 they take the old ones' place. */
+    void glassFade(float amount) {
+        glassFade = amount;
+        if (nextDigits == null || !nextReady) return;
+        nextDigits.setAlpha(amount);
+        if (amount < 1f) return;
+        view.removeView(glassDigits);
+        glassDigits = nextDigits;
+        nextDigits = null;
     }
 
     private static void styleLine(TextView text, Typeface regular, float density) {

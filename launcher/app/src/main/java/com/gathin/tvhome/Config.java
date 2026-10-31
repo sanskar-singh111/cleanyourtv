@@ -38,6 +38,8 @@ import java.util.Set;
 final class Config {
     private static final String TAG = "TvHome.Config";
     static final String FILE_NAME = "config.json";
+    /** A config.json past this is ignored whole. A theme with a watchlist, mood cards and weather_scene comes to about 70 KB. */
+    static final int MAX_OVERLAY_BYTES = 256 * 1024;
     static final String WALLPAPER_NAME = "wallpaper.jpg";
     /** The same picture as a PNG, used when there is no wallpaper.jpg: lossless, so dark gradients keep their steps. */
     static final String WALLPAPER_PNG_NAME = "wallpaper.png";
@@ -1066,8 +1068,8 @@ final class Config {
 
     private static JSONObject read(File file) {
         if (file == null || !file.isFile()) return null;
-        if (file.length() > 64 * 1024) {
-            Log.w(TAG, "ignoring " + file + ": larger than 64 KB");
+        if (file.length() > MAX_OVERLAY_BYTES) {
+            Log.w(TAG, "ignoring " + file + ": larger than " + MAX_OVERLAY_BYTES / 1024 + " KB");
             return null;
         }
         try (InputStream in = new FileInputStream(file)) {

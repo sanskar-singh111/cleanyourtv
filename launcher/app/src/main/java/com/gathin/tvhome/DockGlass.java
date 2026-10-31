@@ -59,6 +59,9 @@ final class DockGlass {
     private final ImageView next;
     private int bakedW, bakedH, bakedMargin, bakedLeft, bakedTop;
     private float bakedRadius;
+    /** How far the look's change has come; the new picture when it is ready. */
+    private float nextFade;
+    private Bitmap nextBaked;
     private final int intensity, transparency, shine;
     private final float density;
     private final int screenW, screenH;
@@ -245,33 +248,40 @@ final class DockGlass {
         view.animate().alpha(1f).setDuration(220).start();
     }
 
-    /** weather_scene: the panel made from another look's pictures. It fades in over the old one, then takes its place. */
-    void glass(File strip, File rim, int fadeMs) {
+    /** weather_scene: the panel made from another look's pictures, baked off the main thread for glassFade to bring in. */
+    void glass(File strip, File rim) {
         if (strip == null || strip.equals(this.strip) && rim != null && rim.equals(this.rim)) return;
         this.strip = strip;
         this.rim = rim;
         if (bakedW == 0) return;
+        nextFade = 0;
+        nextBaked = null;
         int w = bakedW, h = bakedH, margin = bakedMargin, left = bakedLeft, top = bakedTop;
         float radius = bakedRadius;
         baker.execute(() -> {
             Bitmap baked = bake(strip, rim, w, h, margin, left, top, radius);
-            view.post(() -> fadeTo(baked, fadeMs));
+            view.post(() -> {
+                if (baked == null || strip != this.strip) return;
+                nextBaked = baked;
+                next.setLayoutParams(new FrameLayout.LayoutParams((FrameLayout.LayoutParams) view.getLayoutParams()));
+                next.setImageBitmap(baked);
+                next.setVisibility(View.VISIBLE);
+                glassFade(nextFade);
+            });
         });
     }
 
-    private void fadeTo(Bitmap baked, int fadeMs) {
-        if (baked == null) return;
-        next.animate().cancel();
-        next.setLayoutParams(new FrameLayout.LayoutParams((FrameLayout.LayoutParams) view.getLayoutParams()));
-        next.setImageBitmap(baked);
-        next.setAlpha(0f);
-        next.setVisibility(View.VISIBLE);
-        next.animate().alpha(1f).setDuration(fadeMs).withEndAction(() -> {
-            view.setImageBitmap(baked);
-            view.setAlpha(1f);
-            next.setVisibility(View.GONE);
-            next.setImageBitmap(null);
-        }).start();
+    /** How much of the new panel shows, 0 to 1; at 1 it takes the old one's place. */
+    void glassFade(float amount) {
+        nextFade = amount;
+        if (nextBaked == null) return;
+        next.setAlpha(amount);
+        if (amount < 1f) return;
+        view.setImageBitmap(nextBaked);
+        view.setAlpha(1f);
+        nextBaked = null;
+        next.setVisibility(View.GONE);
+        next.setImageBitmap(null);
     }
 
     /** The picture, w x h with the panel `margin` inside it; (left, top) is the picture's place on the wallpaper. */

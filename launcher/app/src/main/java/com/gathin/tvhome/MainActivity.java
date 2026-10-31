@@ -2567,11 +2567,19 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     }
 
     /** weather_city with big_clock: the reading goes on the clock's line, not beside the small clock. */
+    @android.annotation.SuppressLint("UnspecifiedRegisterReceiverFlag")   // both branches are right for their Android; lint only reads the second
     private void addBigClockWeather(Config cfg) {
         if (scene != null && cfg.weatherScene != null) {
-            weatherScene = new WeatherScene(this, root, scene, cfg.weatherScene, (look, fadeMs) -> {
-                bigClock.glass(look.clock != null ? look.clock : cfg.bigClockGlass, fadeMs);
-                if (dockGlass != null) dockGlass.glass(look.strip != null ? look.strip : cfg.glassStrip, look.rim != null ? look.rim : cfg.glassRim, fadeMs);
+            weatherScene = new WeatherScene(this, root, scene, cfg.weatherScene, new WeatherScene.Glass() {
+                @Override public void show(WeatherLooks.Look look) {
+                    bigClock.glass(look.clock != null ? look.clock : cfg.bigClockGlass);
+                    if (dockGlass != null) dockGlass.glass(look.strip != null ? look.strip : cfg.glassStrip, look.rim != null ? look.rim : cfg.glassRim);
+                }
+
+                @Override public void fade(float amount) {
+                    bigClock.glassFade(amount);
+                    if (dockGlass != null) dockGlass.glassFade(amount);
+                }
             });
             IntentFilter filter = new IntentFilter("com.gathin.tvhome.WEATHER_TEST");
             // Only what holds this permission reaches it: the adb shell does, ordinary apps can't.

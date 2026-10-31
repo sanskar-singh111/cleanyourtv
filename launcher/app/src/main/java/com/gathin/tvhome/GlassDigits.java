@@ -73,11 +73,11 @@ final class GlassDigits extends TextClock {
 
     /** Decodes the picture off the main thread; the digits appear once it is there, or plain if it can't be read. */
     void load(File picture, int opacityPercent) {
-        load(picture, opacityPercent, 220, null);
+        load(picture, opacityPercent, () -> animate().alpha(1f).setDuration(220).start());
     }
 
-    /** As above, fading in over `fadeMs`, then `then` on the main thread. */
-    void load(File picture, int opacityPercent, int fadeMs, Runnable then) {
+    /** As above, then `ready` on the main thread: the caller brings the digits in. */
+    void load(File picture, int opacityPercent, Runnable ready) {
         opacity = opacityPercent;
         setAlpha(0f);
         new Thread(() -> {
@@ -85,7 +85,7 @@ final class GlassDigits extends TextClock {
             post(() -> {
                 glass = decoded;
                 invalidate();
-                animate().alpha(1f).setDuration(fadeMs).withEndAction(then).start();
+                ready.run();
             });
         }, "clock-glass").start();
     }

@@ -48,9 +48,11 @@ final class WeatherScene implements Choreographer.FrameCallback {
     private static final int FLASH_COLOR = 0xFFC8D6FF;
     private static final String TAG = "TvHome.Weather", PREFS = "weather_test";
 
-    /** The picture in the digits and the dock's glass, in a clear sky too. */
+    /** The pictures in the digits and the dock's glass, which change with the sky: this look's made ready, then brought in. */
     interface Glass {
-        void show(WeatherLooks.Look look, int fadeMs);
+        void show(WeatherLooks.Look look);
+
+        void fade(float amount);
     }
 
     private final FrameLayout root;
@@ -264,12 +266,12 @@ final class WeatherScene implements Choreographer.FrameCallback {
     private void begin(Stage next, int ms) {
         int under = stage == null ? root.indexOfChild(scene.back()) + 1 : firstAbove(stage);
         if (next.skyView != null) add(next, next.skyView, under++, full());
+        // Behind the clouds: they stand dark against the flash and keep their shapes.
+        if (next.flashView != null) add(next, next.flashView, under++, full());
         if (next.far != null) {
             add(next, next.far, under++, next.far.params(0));
             add(next, next.near, under++, next.near.params(0));
         }
-        int clockAt = root.indexOfChild(scene.front());
-        if (next.flashView != null) add(next, next.flashView, clockAt, full());
         int over = root.indexOfChild(sky);
         if (next.mistBack != null) {
             add(next, next.mistBack, over++, next.mistBack.params(Math.round(MIST_TOP * scale)));
@@ -291,7 +293,7 @@ final class WeatherScene implements Choreographer.FrameCallback {
         fading = true;
         fadeStart = System.nanoTime();
         fadeMs = ms;
-        glass.show(next.look, ms);
+        glass.show(next.look);
         run();
     }
 
@@ -325,6 +327,7 @@ final class WeatherScene implements Choreographer.FrameCallback {
             // A sky under the new one stays solid: fading both would let the photo through. With no new sky it fades away.
             if (leaving != null) leaving.show(1f - amount, stage.skyView == null);
             applyTone(amount);
+            glass.fade(amount);
         }
         moveClouds(stage);
         if (leaving != null) moveClouds(leaving);
@@ -368,6 +371,7 @@ final class WeatherScene implements Choreographer.FrameCallback {
         if (old != null) old.remove();
         stage.show(1f, true);
         applyTone(1f);
+        glass.fade(1f);
         scene.back().setVisibility(stage.skyView != null ? View.INVISIBLE : View.VISIBLE);
         drops(1f);
         change();
@@ -422,7 +426,7 @@ final class WeatherScene implements Choreographer.FrameCallback {
             if (stage.edgeView != null) stage.edgeView.setVisibility(View.VISIBLE);
         }
         float ms = (now - flashStart) / 1e6f, f = flash(ms) * stage.look.flash / 100f;
-        if (stage.flashView != null) stage.flashView.setAlpha(f * 0.8f);
+        if (stage.flashView != null) stage.flashView.setAlpha(Math.min(1f, f * 1.6f));
         if (stage.edgeView != null) stage.edgeView.setAlpha(f);
         if (ms >= 700) {
             endFlash();
