@@ -8,6 +8,9 @@ Usage: TV_HOST=192.168.1.50 tools/venv/bin/python tools/theme_sync.py themes/aur
              "sent_bytes": 81920, "total_bytes": 409600}), the last one the answer ({"ok": true, "sent": 3,
              "deleted": 0, "seconds": 4.2}), for tools such as TV Studio
     --full   send every file, as theme.sh does (still one connection)
+    --plan   change nothing: the last JSON line says what a push would send and delete ({"ok": true, "plan": true,
+             "send": ["logos/a.png"], "send_bytes": 81920, "delete": ["wallpaper/old.jpg"], "delete_bytes": 409600,
+             "files": 52, "known": true})
 
 theme.sh stays the reference: the same files are read (config.json, wallpaper.jpg/.png, wallpapers/ with captions.txt,
 and picture folders named with lower-case letters, digits, - and _), and they are written through the launcher's
@@ -158,9 +161,19 @@ def plan(local, remote, full=False):
     return changed, stale
 
 
+def remote_size(dev, names):
+    """Total bytes of these files on the TV (0 for any it can't say)."""
+    total = 0
+    for i in range(0, len(names), DELETE_BATCH):
+        batch = " ".join(f"'./{n}'" for n in names[i:i + DELETE_BATCH])
+        out = dev.shell(f"cd {DIR} 2>/dev/null && stat -c '%s' {batch} 2>/dev/null", read_timeout_s=30.0)
+        total += sum(int(line) for line in out.split() if line.isdigit())
+    return total
+
+
 def main():
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
-    as_json, full = "--json" in sys.argv, "--full" in sys.argv
+    as_json, full, plan_only = "--json" in sys.argv, "--full" in sys.argv, "--plan" in sys.argv
     if len(args) != 1:
         sys.stderr.write(__doc__)
         return 2
@@ -194,6 +207,10 @@ def main():
     try:
         remote = remote_sums(dev)
         changed, stale = plan(local, remote, full)
+        if plan_only:
+            say(ok=True, plan=True, send=changed, send_bytes=sum(os.path.getsize(local[n]) for n in changed),
+                delete=stale, delete_bytes=remote_size(dev, stale), files=len(local), known=remote is not None)
+            return 0
         if remote is None:
             # The TV's copy is unknown: clear each picture folder as theme.sh does, so nothing stale stays behind.
             folders = sorted({n.split("/")[0] for n in local if "/" in n} | {"wallpapers"})
@@ -216,6 +233,7 @@ def main():
             # shell call that runs for minutes outlives the connection's read timeout.
             for i in range(0, len(stale), DELETE_BATCH):
                 batch = stale[i:i + DELETE_BATCH]
+                say(event="removing", done=i, total=len(stale))
                 dev.shell("; ".join(delete(n) for n in batch), read_timeout_s=max(30.0, 3.0 * len(batch)))
         if changed and remote is not None:
             # The TV's copy now matches, file by file.

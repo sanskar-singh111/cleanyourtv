@@ -83,6 +83,23 @@ class PlanTest(unittest.TestCase):
         self.assertEqual(stale, [])
 
 
+class RemoteSizeTest(unittest.TestCase):
+    class Dev:
+        def __init__(self):
+            self.calls = []
+
+        def shell(self, cmd, **k):
+            self.calls.append(cmd)
+            return "1000\n2000\n"
+
+    def test_sizes_are_added_up_in_batches(self):
+        dev = self.Dev()
+        names = [f"wallpaper/{i}.jpg" for i in range(sync.DELETE_BATCH + 1)]
+        self.assertEqual(sync.remote_size(dev, names), 6000)
+        self.assertEqual(len(dev.calls), 2)
+        self.assertIn("'./wallpaper/0.jpg'", dev.calls[0])
+
+
 if __name__ == "__main__":
     unittest.main()
 
