@@ -28,8 +28,10 @@ final class WeatherLooks {
         int land = Color.WHITE, landSaturation = 100;
         /** In percent. */
         int mist, haze;
-        /** How many streaks, how strong in percent, how fast in percent; how many flakes; the flash in percent. */
-        int rain, rainAlpha, rainSpeed = 100, snow, flash;
+        /** How many streaks, how strong, how fast and how big in percent, how many big soft ones close by; flakes; the flash in percent. */
+        int rain, rainAlpha, rainSpeed = 100, rainSize = 100, rainClose, snow, flash;
+        /** How much darker the wet trees go, in percent. */
+        int wet;
 
         Look(String id) {
             this.id = id;
@@ -41,7 +43,7 @@ final class WeatherLooks {
     }
 
     final Map<String, Look> looks = new HashMap<>();
-    File mist, haze, edge, trees;
+    File mist, haze, edge, trees, streak;
 
     /** The look's id for a WMO weather code as Open-Meteo reports it, with visibility in metres and PM2.5, each -1 when not known. */
     static String look(int code, int metres, float pm25) {
@@ -68,6 +70,7 @@ final class WeatherLooks {
             out.haze = Config.themeFile(dir, art.optString("haze", null));
             out.edge = Config.themeFile(dir, art.optString("edge", null));
             out.trees = Config.themeFile(dir, art.optString("trees", null));
+            out.streak = Config.themeFile(dir, art.optString("streak", null));
         }
         for (Iterator<String> ids = looks.keys(); ids.hasNext(); ) {
             String id = ids.next();
@@ -89,6 +92,9 @@ final class WeatherLooks {
             l.rain = Math.max(0, Math.min(WeatherSky.MAX_RAIN, o.optInt("rain", 0)));
             l.rainAlpha = percent(o, "rain_alpha", 0);
             l.rainSpeed = Math.max(50, Math.min(200, o.optInt("rain_speed", 100)));
+            l.rainSize = Math.max(30, Math.min(200, o.optInt("rain_size", 100)));
+            l.rainClose = Math.max(0, Math.min(WeatherSky.MAX_CLOSE, o.optInt("rain_close", 0)));
+            l.wet = percent(o, "wet", 0);
             l.snow = Math.max(0, Math.min(WeatherSky.MAX_SNOW, o.optInt("snow", 0)));
             l.flash = percent(o, "flash", 0);
             out.looks.put(id, l);

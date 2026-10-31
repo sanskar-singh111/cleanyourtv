@@ -43,8 +43,10 @@ final class WeatherScene implements Choreographer.FrameCallback {
     private static final float MIST_SPEED = 5;
     /** During the idle fade things move this much slower, and only every second frame is drawn. */
     private static final float IDLE_SPEED = 0.45f;
-    /** Lightning: the fewest and the most seconds between flashes, and the flash's colour. */
-    private static final float FLASH_MIN_S = 6, FLASH_MAX_S = 18;
+    /** Lightning: the fewest and the most seconds between flashes, and the flash's colour. A bolt goes with a flash, at most this often. */
+    private static final float FLASH_MIN_S = 6, FLASH_MAX_S = 18, BOLT_MIN_S = 15, BOLT_MAX_S = 20;
+    /** A bolt only shows over the first part of its flash. */
+    private static final int BOLT_MS = 420;
     private static final int FLASH_COLOR = 0xFFC8D6FF;
     private static final String TAG = "TvHome.Weather", PREFS = "weather_test";
 
@@ -74,15 +76,16 @@ final class WeatherScene implements Choreographer.FrameCallback {
     private long lastFrame, fadeStart;
     private int fadeMs;
     private float seconds;
-    private long flashAt, flashStart;
+    private long flashAt, flashStart, boltAt;
     /** The land's colour and saturation before the fade, and where the fade ends. */
     private float[] toneFrom = {1, 1, 1, 1}, toneTo = {1, 1, 1, 1}, toneNow = {1, 1, 1, 1};
 
     /** One look's views. */
     private final class Stage {
         final WeatherLooks.Look look;
-        ImageView skyView, hazeView, treesView, edgeView;
+        ImageView skyView, hazeView, treesView, wetView, edgeView;
         View flashView;
+        WeatherBolt bolt;
         CloudLayer far, near, mistBack, mistFront;
         final List<View> views = new ArrayList<>();
 
@@ -104,6 +107,7 @@ final class WeatherScene implements Choreographer.FrameCallback {
             if (mistBack != null) mistBack.setAlpha(mist);
             if (mistFront != null) mistFront.setAlpha(mist);
             if (treesView != null) treesView.setAlpha(amount);
+            if (wetView != null) wetView.setAlpha(amount * look.wet / 100f);
             if (hazeView != null) hazeView.setAlpha(amount * look.haze / 100f);
         }
     }
@@ -211,17 +215,25 @@ final class WeatherScene implements Choreographer.FrameCallback {
         Bitmap clouds = SceneLayers.onGpu(SceneLayers.decode(look.clouds));
         if (clouds != null) {
             float wide = clouds.getWidth() * CLOUD_TALL * scale / clouds.getHeight();
-            s.far = new CloudLayer(context, clouds, Math.round(wide), Math.round(CLOUD_TALL * scale), look.cloudTint);
-            s.near = new CloudLayer(context, clouds, Math.round(wide * NEAR_SIZE), Math.round(CLOUD_TALL * scale * NEAR_SIZE), look.cloudTint);
+            s.far = new CloudLayer(context, clouds, Math.round(wide), Math.round(CLOUD_TALL * scale), look.cloudTint, false);
+            s.near = new CloudLayer(context, clouds, Math.round(wide * NEAR_SIZE), Math.round(CLOUD_TALL * scale * NEAR_SIZE), look.cloudTint, true);
         }
         if (look.mist > 0) {
             Bitmap mist = SceneLayers.onGpu(SceneLayers.decode(looks.mist));
             if (mist != null) {
                 int wide = Math.round(width * MIST_WIDE), tall = Math.round(MIST_TALL * scale);
-                s.mistBack = new CloudLayer(context, mist, wide, tall, Color.WHITE);
-                s.mistFront = new CloudLayer(context, mist, wide, tall, Color.WHITE);
+                s.mistBack = new CloudLayer(context, mist, wide, tall, Color.WHITE, false);
+                s.mistFront = new CloudLayer(context, mist, wide, tall, Color.WHITE, false);
             }
             s.treesView = picture(context, SceneLayers.onGpu(SceneLayers.decode(looks.trees)));
+        }
+        if (look.wet > 0) {
+            s.wetView = picture(context, SceneLayers.onGpu(SceneLayers.decode(looks.trees)));
+            if (s.wetView != null) s.wetView.setColorFilter(Color.BLACK, PorterDuff.Mode.SRC_IN);
+        }
+        if (look.rainClose > 0 && !sky.hasStreak()) {
+            Bitmap streak = SceneLayers.onGpu(SceneLayers.decode(looks.streak));
+            root.post(() -> sky.streak(streak));
         }
         if (look.haze > 0) s.hazeView = picture(context, SceneLayers.onGpu(SceneLayers.decode(looks.haze)));
         if (look.flash > 0) {
@@ -231,6 +243,8 @@ final class WeatherScene implements Choreographer.FrameCallback {
             s.flashView.setVisibility(View.INVISIBLE);
             s.flashView.setFocusable(false);
             s.flashView.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+            s.bolt = new WeatherBolt(context);
+            s.bolt.setVisibility(View.INVISIBLE);
         }
         return s;
     }
@@ -266,18 +280,19 @@ final class WeatherScene implements Choreographer.FrameCallback {
     private void begin(Stage next, int ms) {
         int under = stage == null ? root.indexOfChild(scene.back()) + 1 : firstAbove(stage);
         if (next.skyView != null) add(next, next.skyView, under++, full());
-        // Behind the clouds: they stand dark against the flash and keep their shapes.
+        // Between the cloud layers: the near clouds stand dark against the flash and keep their shapes, and the sky still lights up.
+        if (next.far != null) add(next, next.far, under++, next.far.params(0));
         if (next.flashView != null) add(next, next.flashView, under++, full());
-        if (next.far != null) {
-            add(next, next.far, under++, next.far.params(0));
-            add(next, next.near, under++, next.near.params(0));
-        }
+        if (next.near != null) add(next, next.near, under++, next.near.params(0));
+        // In the distant sky: over the clouds, behind the clock and the land.
+        if (next.bolt != null) add(next, next.bolt, under++, full());
         int over = root.indexOfChild(sky);
         if (next.mistBack != null) {
             add(next, next.mistBack, over++, next.mistBack.params(Math.round(MIST_TOP * scale)));
             add(next, next.mistFront, over++, next.mistFront.params(Math.round((MIST_TOP + MIST_APART) * scale)));
         }
         if (next.treesView != null) add(next, next.treesView, over++, from(TREES_TOP, 1080 - TREES_TOP));
+        if (next.wetView != null) add(next, next.wetView, over++, from(TREES_TOP, 1080 - TREES_TOP));
         if (next.hazeView != null) add(next, next.hazeView, over++, from(HAZE_TOP, 1080 - HAZE_TOP));
         if (next.edgeView != null) {
             next.edgeView.setVisibility(View.INVISIBLE);
@@ -351,16 +366,19 @@ final class WeatherScene implements Choreographer.FrameCallback {
 
     private void drops(float amount) {
         WeatherLooks.Look to = stage.look, from = leaving == null ? null : leaving.look;
-        float rain = to.rain * amount, snow = to.snow * amount, alpha = to.rainAlpha / 100f, fast = to.rainSpeed / 100f;
+        float rain = to.rain * amount, close = to.rainClose * amount, snow = to.snow * amount;
+        float alpha = to.rainAlpha / 100f, fast = to.rainSpeed / 100f, size = to.rainSize / 100f;
         if (from != null) {
             rain += from.rain * (1f - amount);
+            close += from.rainClose * (1f - amount);
             snow += from.snow * (1f - amount);
             if (to.rain == 0) {
                 alpha = from.rainAlpha / 100f;
                 fast = from.rainSpeed / 100f;
+                size = from.rainSize / 100f;
             }
         }
-        sky.set(seconds, rain, alpha, fast, snow);
+        sky.set(seconds, rain, alpha, fast, size, close, snow);
         sky.setVisibility(sky.empty() ? View.GONE : View.VISIBLE);
     }
 
@@ -398,6 +416,13 @@ final class WeatherScene implements Choreographer.FrameCallback {
         return new float[]{Color.red(look.land) / 255f, Color.green(look.land) / 255f, Color.blue(look.land) / 255f, look.landSaturation / 100f};
     }
 
+    private void strikeBolt(long now) {
+        if (stage.bolt == null || now < boltAt) return;
+        boltAt = now + (long) ((BOLT_MIN_S + random.nextFloat() * (BOLT_MAX_S - BOLT_MIN_S)) * 1e9f);
+        stage.bolt.strike(random, width, scale);
+        stage.bolt.setVisibility(View.VISIBLE);
+    }
+
     private void scheduleFlash() {
         float wait = FLASH_MIN_S + random.nextFloat() * (FLASH_MAX_S - FLASH_MIN_S);
         flashAt = System.nanoTime() + (long) (wait * 1e9f);
@@ -424,9 +449,14 @@ final class WeatherScene implements Choreographer.FrameCallback {
             flashStart = now;
             if (stage.flashView != null) stage.flashView.setVisibility(View.VISIBLE);
             if (stage.edgeView != null) stage.edgeView.setVisibility(View.VISIBLE);
+            strikeBolt(now);
         }
         float ms = (now - flashStart) / 1e6f, f = flash(ms) * stage.look.flash / 100f;
-        if (stage.flashView != null) stage.flashView.setAlpha(Math.min(1f, f * 1.6f));
+        if (stage.bolt != null) {
+            stage.bolt.setAlpha(Math.min(1f, flash(ms) * 1.3f));
+            if (ms >= BOLT_MS) stage.bolt.setVisibility(View.INVISIBLE);
+        }
+        if (stage.flashView != null) stage.flashView.setAlpha(Math.min(1f, f * 1.2f));
         if (stage.edgeView != null) stage.edgeView.setAlpha(f);
         if (ms >= 700) {
             endFlash();
@@ -438,6 +468,7 @@ final class WeatherScene implements Choreographer.FrameCallback {
         if (stage == null) return;
         if (stage.flashView != null) stage.flashView.setVisibility(View.INVISIBLE);
         if (stage.edgeView != null) stage.edgeView.setVisibility(View.INVISIBLE);
+        if (stage.bolt != null) stage.bolt.setVisibility(View.INVISIBLE);
         flashStart = 0;
     }
 
@@ -455,14 +486,16 @@ final class WeatherScene implements Choreographer.FrameCallback {
     private static final class CloudLayer extends View {
         private final Bitmap bitmap;
         private final int wide, tall;
+        private final boolean mirrored;
         private final Paint paint = new Paint(Paint.FILTER_BITMAP_FLAG);
         private final RectF place = new RectF();
 
-        CloudLayer(Context context, Bitmap bitmap, int wide, int tall, int tint) {
+        CloudLayer(Context context, Bitmap bitmap, int wide, int tall, int tint, boolean mirrored) {
             super(context);
             this.bitmap = bitmap;
             this.wide = wide;
             this.tall = tall;
+            this.mirrored = mirrored;
             setFocusable(false);
             setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
             setWillNotDraw(false);
@@ -489,6 +522,8 @@ final class WeatherScene implements Choreographer.FrameCallback {
 
         @Override
         protected void onDraw(Canvas canvas) {
+            // Turned round, the same texture at another size doesn't read as a copy of the far layer.
+            if (mirrored) canvas.scale(-1f, 1f, wide, 0);
             for (int i = 0; i < 2; i++) {
                 place.set(i * wide, 0, (i + 1) * wide, tall);
                 canvas.drawBitmap(bitmap, null, place, paint);
