@@ -10,7 +10,7 @@ Usage: TV_HOST=192.168.1.50 tools/venv/bin/python tools/theme_sync.py themes/aur
     --full   send every file, as theme.sh does (still one connection)
     --plan   change nothing: the last JSON line says what a push would send and delete ({"ok": true, "plan": true,
              "send": ["logos/a.png"], "send_bytes": 81920, "delete": ["wallpaper/old.jpg"], "delete_bytes": 409600,
-             "files": 52, "known": true})
+             "big": 1, "files": 52, "known": true}); big counts the files over STALL_ABOVE, which take the push's stall
 
 theme.sh stays the reference: the same files are read (config.json, wallpaper.jpg/.png, wallpapers/ with captions.txt,
 and picture folders named with lower-case letters, digits, - and _), and they are written through the launcher's
@@ -57,6 +57,9 @@ def put(name):
     return (f"rm -f {DIR}/{name} 2>/dev/null; {{ o=$(content write --uri {URI}/{name} < {s} 2>&1) && case \"$o\" in "
             f"*'Unsupported operation'*) false ;; esac; }} || cp {s} {DIR}/{name} 2>/dev/null; rm -f {s}")
 
+
+# On the TV and the emulator alike a sync push of more than about this many bytes stalls, so the file goes by base64.
+STALL_ABOVE = 450_000
 
 # Files removed per shell call.
 DELETE_BATCH = 30
@@ -209,7 +212,8 @@ def main():
         changed, stale = plan(local, remote, full)
         if plan_only:
             say(ok=True, plan=True, send=changed, send_bytes=sum(os.path.getsize(local[n]) for n in changed),
-                delete=stale, delete_bytes=remote_size(dev, stale), files=len(local), known=remote is not None)
+                delete=stale, delete_bytes=remote_size(dev, stale), big=sum(os.path.getsize(local[n]) > STALL_ABOVE for n in changed),
+                files=len(local), known=remote is not None)
             return 0
         if remote is None:
             # The TV's copy is unknown: clear each picture folder as theme.sh does, so nothing stale stays behind.
