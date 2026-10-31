@@ -133,6 +133,15 @@ final class SceneLayers {
         return gpu;
     }
 
+    /** The picture behind the clock and the land over it: weather_scene goes between them, and tones the land. */
+    ImageView back() {
+        return back;
+    }
+
+    ImageView front() {
+        return front;
+    }
+
     void close() {
         decoder.shutdownNow();
     }

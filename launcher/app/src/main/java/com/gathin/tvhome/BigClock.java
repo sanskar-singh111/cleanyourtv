@@ -29,6 +29,12 @@ final class BigClock {
     private static final float DIGITS_SHADOW_DP = 14;
 
     final FrameLayout view;
+    /** The glass digits and how they were made; another look's digits are laid over them while the look changes. */
+    private GlassDigits glassDigits, nextDigits;
+    private File glassPicture;
+    private final Typeface digitsFont;
+    private final int opacityPercent, shine;
+    private final float textSize;
     private final LinearLayout weather;
     private final WeatherIcon icon = new WeatherIcon();
     private final TextView weatherText;
@@ -41,20 +47,14 @@ final class BigClock {
         view.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
         view.setLayoutParams(new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
-        GlassDigits glassDigits = glass == null ? null : new GlassDigits(context, shine, DIGITS_SHADOW, DIGITS_SHADOW_DP);
+        this.digitsFont = digitsFont;
+        glassPicture = glass;
+        this.opacityPercent = opacityPercent;
+        this.shine = shine;
+        textSize = screenH * sizePercent / 100f / DIGIT_SHARE;
+        glassDigits = glass == null ? null : new GlassDigits(context, shine, DIGITS_SHADOW, DIGITS_SHADOW_DP);
         TextClock digits = glassDigits != null ? glassDigits : new TextClock(context);
-        digits.setFormat12Hour("h:mm");
-        digits.setFormat24Hour("HH:mm");
-        digits.setTypeface(digitsFont);
-        digits.setTextColor(Math.round(255 * opacityPercent / 100f) << 24 | 0xFFFFFF);
-        digits.setIncludeFontPadding(false);
-        digits.setShadowLayer(DIGITS_SHADOW_DP * density, 0, density, DIGITS_SHADOW);
-        // Room for the shadow at the sides, and one texture: it is blurred when the minute changes, not on every frame.
-        int room = Math.round(DIGITS_SHADOW_DP * density * 1.5f);
-        digits.setPadding(room, 0, room, 0);
-        digits.setLayerType(View.LAYER_TYPE_HARDWARE, null);
-        float textSize = screenH * sizePercent / 100f / DIGIT_SHARE;
-        digits.setTextSize(TypedValue.COMPLEX_UNIT_PX, textSize);
+        style(digits, density);
         FrameLayout.LayoutParams dlp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.CENTER_HORIZONTAL);
         // The digits' top, not the view's: above them the view keeps the font's whole ascent.
@@ -90,6 +90,41 @@ final class BigClock {
                 ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.CENTER_HORIZONTAL);
         llp.topMargin = Math.round(screenH * (digitsTop - LINE_ABOVE));
         view.addView(line, llp);
+    }
+
+    private void style(TextClock digits, float density) {
+        digits.setFormat12Hour("h:mm");
+        digits.setFormat24Hour("HH:mm");
+        digits.setTypeface(digitsFont);
+        digits.setTextColor(Math.round(255 * opacityPercent / 100f) << 24 | 0xFFFFFF);
+        digits.setIncludeFontPadding(false);
+        digits.setShadowLayer(DIGITS_SHADOW_DP * density, 0, density, DIGITS_SHADOW);
+        // Room for the shadow at the sides, and one texture: it is blurred when the minute changes, not on every frame.
+        int room = Math.round(DIGITS_SHADOW_DP * density * 1.5f);
+        digits.setPadding(room, 0, room, 0);
+        digits.setLayerType(View.LAYER_TYPE_HARDWARE, null);
+        digits.setTextSize(TypedValue.COMPLEX_UNIT_PX, textSize);
+    }
+
+    /** weather_scene: the glass made from another sky. A second set of digits fades in over the first, then takes its place. */
+    void glass(File picture, int fadeMs) {
+        if (glassDigits == null || picture == null || picture.equals(glassPicture)) return;
+        glassPicture = picture;
+        Context context = view.getContext();
+        if (nextDigits != null) {
+            nextDigits.animate().cancel();
+            view.removeView(nextDigits);
+        }
+        GlassDigits next = new GlassDigits(context, shine, DIGITS_SHADOW, DIGITS_SHADOW_DP);
+        nextDigits = next;
+        style(next, context.getResources().getDisplayMetrics().density);
+        view.addView(next, view.indexOfChild(glassDigits) + 1, new FrameLayout.LayoutParams(glassDigits.getLayoutParams()));
+        next.load(picture, opacityPercent, fadeMs, () -> {
+            if (nextDigits != next) return;
+            nextDigits = null;
+            view.removeView(glassDigits);
+            glassDigits = next;
+        });
     }
 
     private static void styleLine(TextView text, Typeface regular, float density) {

@@ -24,7 +24,8 @@ import java.util.concurrent.Executors;
  * key. The city is looked up once with Open-Meteo's geocoding and its coordinates kept; the weather is fetched only
  * while Home is in front ({@link #resume} to {@link #pause}), at most every 30 minutes, and the last reading is kept so
  * Home shows it at once. A failed request changes nothing on screen; a reading older than three hours is hidden. Only
- * the temperature and the icon are shown, never the place.
+ * the temperature and the icon are shown, never the place. With weather_scene it reads visibility too, and PM2.5 from Open-Meteo's
+ * air quality API; a failure there leaves the rest of the reading as it is.
  */
 final class Weather {
     interface Listener {
@@ -37,11 +38,20 @@ final class Weather {
         final int icon;
         /** The WMO weather code, -1 when it isn't known. */
         final int code;
+        /** Visibility in metres and PM2.5 in micrograms a cubic metre, -1 when not known. */
+        final int metres;
+        final float pm25;
 
         Reading(int celsius, int icon, int code) {
+            this(celsius, icon, code, -1, -1);
+        }
+
+        Reading(int celsius, int icon, int code, int metres, float pm25) {
             this.celsius = celsius;
             this.icon = icon;
             this.code = code;
+            this.metres = metres;
+            this.pm25 = pm25;
         }
     }
 
@@ -70,6 +80,7 @@ final class Weather {
     private final String city;
     private final SharedPreferences prefs;
     private final Listener listener;
+    private final boolean air;
     private final Handler main = new Handler(Looper.getMainLooper());
     private final ExecutorService net = Executors.newSingleThreadExecutor();
     private boolean active;
@@ -77,8 +88,14 @@ final class Weather {
     private final Runnable tick = this::refresh;
 
     Weather(Context ctx, String city, Listener listener) {
+        this(ctx, city, listener, false);
+    }
+
+    /** `air`: read visibility and PM2.5 too, for weather_scene. */
+    Weather(Context ctx, String city, Listener listener, boolean air) {
         this.city = city;
         this.listener = listener;
+        this.air = air;
         prefs = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
         // Another city in the theme: the old place and reading belong to it.
         if (!city.equals(prefs.getString("city", ""))) prefs.edit().clear().putString("city", city).apply();
@@ -105,7 +122,7 @@ final class Weather {
         long at = prefs.getLong("at", 0);
         boolean fresh = at > 0 && System.currentTimeMillis() - at < STALE_MS;
         listener.onWeather(fresh ? new Reading(prefs.getInt("celsius", 0), prefs.getInt("icon", WeatherIcon.CLOUDY),
-                prefs.getInt("code", -1)) : null);
+                prefs.getInt("code", -1), prefs.getInt("metres", -1), prefs.getFloat("pm25", -1)) : null);
     }
 
     /** Fetches when the kept reading is 30 minutes old, then checks again when the next one is due. */
@@ -114,7 +131,7 @@ final class Weather {
         if (!active) return;
         long due = prefs.getLong("at", 0) + REFRESH_MS - System.currentTimeMillis();
         // A reading kept from before the condition was read is fetched again: the big clock's line needs it.
-        if (due > 0 && prefs.contains("code")) {
+        if (due > 0 && prefs.contains("code") && (!air || prefs.contains("pm25"))) {
             main.postDelayed(tick, due);
             return;
         }
@@ -134,7 +151,7 @@ final class Weather {
                 fetching = false;
                 if (result == null) return;
                 prefs.edit().putInt("celsius", result.celsius).putInt("icon", result.icon).putInt("code", result.code)
-                        .putLong("at", System.currentTimeMillis()).apply();
+                        .putInt("metres", result.metres).putFloat("pm25", result.pm25).putLong("at", System.currentTimeMillis()).apply();
                 if (active) {
                     show();
                     refresh();
@@ -157,8 +174,16 @@ final class Weather {
             lon = String.format(Locale.US, "%.4f", place[1]);
             prefs.edit().putString("lat", lat).putString("lon", lon).apply();
         }
-        return current(get("https://api.open-meteo.com/v1/forecast?current=temperature_2m,weather_code,is_day"
-                + "&temperature_unit=celsius&latitude=" + lat + "&longitude=" + lon));
+        Reading now = current(get("https://api.open-meteo.com/v1/forecast?current=temperature_2m,weather_code,is_day"
+                + (air ? ",visibility" : "") + "&temperature_unit=celsius&latitude=" + lat + "&longitude=" + lon));
+        if (!air || now == null) return now;
+        float pm25 = -1;
+        try {
+            pm25 = pm25(get("https://air-quality-api.open-meteo.com/v1/air-quality?current=pm2_5&latitude=" + lat + "&longitude=" + lon));
+        } catch (Exception e) {
+            Log.w(TAG, "no air quality: " + e);
+        }
+        return new Reading(now.celsius, now.icon, now.code, now.metres, pm25);
     }
 
     private static String get(String url) throws Exception {
@@ -209,6 +234,12 @@ final class Weather {
         if (now == null || !now.has("temperature_2m")) return null;
         int celsius = (int) Math.round(now.getDouble("temperature_2m"));
         int code = now.optInt("weather_code", 3);
-        return new Reading(celsius, WeatherIcon.forCode(code, now.optInt("is_day", 1) == 1), code);
+        return new Reading(celsius, WeatherIcon.forCode(code, now.optInt("is_day", 1) == 1), code, (int) Math.round(now.optDouble("visibility", -1)), -1);
+    }
+
+    /** PM2.5 in an air quality answer's "current" block, -1 when it has none. */
+    static float pm25(String json) throws Exception {
+        JSONObject now = new JSONObject(json).optJSONObject("current");
+        return now == null ? -1 : (float) now.optDouble("pm2_5", -1);
     }
 }

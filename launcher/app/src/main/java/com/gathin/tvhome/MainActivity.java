@@ -196,6 +196,14 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private Map<String, String> keepWatchingLabels = Collections.emptyMap();
     private boolean iconDock;
     private DockGlass dockGlass;
+    /** weather_scene (null when off), and Test weather: `am broadcast -a com.gathin.tvhome.WEATHER_TEST --es look rain --ei seconds 300`. */
+    private WeatherScene weatherScene;
+    private final BroadcastReceiver weatherTest = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if (weatherScene != null) weatherScene.test(intent.getStringExtra("look"), intent.getIntExtra("seconds", 300));
+        }
+    };
     private boolean topButtonsShown;
     /** More apps was opened from the dock's "..." tile, not the top bar. */
     private boolean moreFromDock;
@@ -609,7 +617,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             dateBlock.setVisibility(View.GONE);
         }
         if (!cfg.weatherCity.isEmpty()) {
-            if (bigClock != null) addBigClockWeather(cfg.weatherCity);
+            if (bigClock != null) addBigClockWeather(cfg);
             else addWeather(cfg.weatherCity);
         }
         vpnApp = cfg.vpnApp;
@@ -1285,6 +1293,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     /** glass_sweep runs only while the dock is what's on screen. */
     private void updateSweep() {
         if (dockGlass != null) dockGlass.sweep(resumedHome && !faded && !inWatchlist && !moreAppsOpen());
+        // weather_scene keeps moving through the idle fade, more slowly, and stops in apps, More apps, the lineup and the deck.
+        if (weatherScene != null) weatherScene.motion(resumedHome && !inWatchlist && !moreAppsOpen(), faded, !moreAppsOpen());
     }
 
     private void unfade(int ms) {
@@ -1526,6 +1536,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (scene != null) scene.close();
         if (keepWatching != null) keepWatching.close();
         if (dockGlass != null) dockGlass.close();
+        if (weatherScene != null) {
+            unregisterReceiver(weatherTest);
+            weatherScene.close();
+        }
         keepWatchingReads.shutdownNow();
         if (weather != null) weather.close();
         saverRun++;
@@ -2553,12 +2567,27 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     }
 
     /** weather_city with big_clock: the reading goes on the clock's line, not beside the small clock. */
-    private void addBigClockWeather(String city) {
-        weather = new Weather(this, city, reading -> {
+    private void addBigClockWeather(Config cfg) {
+        if (scene != null && cfg.weatherScene != null) {
+            weatherScene = new WeatherScene(this, root, scene, cfg.weatherScene, (look, fadeMs) -> {
+                bigClock.glass(look.clock != null ? look.clock : cfg.bigClockGlass, fadeMs);
+                if (dockGlass != null) dockGlass.glass(look.strip != null ? look.strip : cfg.glassStrip, look.rim != null ? look.rim : cfg.glassRim, fadeMs);
+            });
+            IntentFilter filter = new IntentFilter("com.gathin.tvhome.WEATHER_TEST");
+            // Only what holds this permission reaches it: the adb shell does, ordinary apps can't.
+            String sender = android.Manifest.permission.WRITE_SECURE_SETTINGS;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(weatherTest, filter, sender, null, Context.RECEIVER_EXPORTED);
+            } else {
+                registerReceiver(weatherTest, filter, sender, null);
+            }
+        }
+        weather = new Weather(this, cfg.weatherCity, reading -> {
             bigClock.show(reading);
             lastWeather = reading;
             updateSaverWeather();
-        });
+            if (weatherScene != null) weatherScene.reading(reading);
+        }, weatherScene != null);
     }
 
     /** keep_watching: the row sits in the same frame as the dock, so it fades and hides with it. */

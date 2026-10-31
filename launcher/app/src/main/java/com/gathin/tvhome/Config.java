@@ -310,6 +310,8 @@ final class Config {
     final int glassShine;
     /** glass_sweep: a slow light across the dock every few seconds. */
     final boolean glassSweep;
+    /** weather_scene: what the weather does to the scene wallpaper; null when off. */
+    final WeatherLooks weatherScene;
     /** top_buttons: false hides the buttons at the top right. */
     final boolean topButtons;
 
@@ -338,7 +340,7 @@ final class Config {
                    Map<String, File> scene, boolean bigClock, int bigClockSize, boolean keepWatching, String keepWatchingHeading,
                    boolean iconDock, int iconDockSize, Map<String, File> dockIcons, int bigClockTop, boolean dockCentered,
                    int glassIntensity, File glassStrip, boolean topButtons, int bigClockOpacity, int dockTransparency,
-                   File bigClockGlass, File glassRim, int glassShine, boolean glassSweep) {
+                   File bigClockGlass, File glassRim, int glassShine, boolean glassSweep, WeatherLooks weatherScene) {
         this.scene = Collections.unmodifiableMap(scene);
         this.bigClock = bigClock;
         this.bigClockSize = bigClockSize;
@@ -354,6 +356,7 @@ final class Config {
         this.glassRim = glassRim;
         this.glassShine = glassShine;
         this.glassSweep = glassSweep;
+        this.weatherScene = scene.isEmpty() || weatherCity.isEmpty() ? null : weatherScene;
         this.dockCentered = dockCentered;
         this.glassIntensity = glassStrip == null ? 0 : glassIntensity;
         this.glassStrip = glassStrip;
@@ -621,6 +624,15 @@ final class Config {
         String glassRim = res.getString(R.string.glass_rim);
         int glassShine = res.getInteger(R.integer.glass_shine);
         boolean glassSweep = res.getBoolean(R.bool.glass_sweep);
+        JSONObject weatherScene = null;
+        String weatherSceneText = res.getString(R.string.weather_scene).trim();
+        if (!weatherSceneText.isEmpty()) {
+            try {
+                weatherScene = new JSONObject(weatherSceneText);
+            } catch (Exception e) {
+                Log.w(TAG, "weather_scene isn't JSON: " + e);
+            }
+        }
         boolean topButtons = res.getBoolean(R.bool.top_buttons);
         boolean applied = false;
 
@@ -757,6 +769,7 @@ final class Config {
             glassRim = string(json, "glass_rim", glassRim);
             glassShine = integer(json, "glass_shine", glassShine, 0, 100);
             glassSweep = json.optBoolean("glass_sweep", glassSweep);
+            if (json.has("weather_scene")) weatherScene = json.optJSONObject("weather_scene");
             topButtons = bool(json, "top_buttons", topButtons);
         }
         // A theme push or reset invalidates choices made on the TV. On first use, remember the
@@ -836,7 +849,7 @@ final class Config {
                 iconDock, clamp(iconDockSize, 40, 100), themeFiles(dir, packageMap(dockIcons)), clamp(bigClockTop, 5, 40),
                 "center".equals(dockAlign), clamp(glassIntensity, 0, 100), iconDock ? themeFile(dir, glassStrip) : null, topButtons,
                 clamp(bigClockOpacity, 30, 100), clamp(dockTransparency, 0, 100), bigClock ? themeFile(dir, bigClockGlass) : null,
-                iconDock ? themeFile(dir, glassRim) : null, clamp(glassShine, 0, 100), glassSweep);
+                iconDock ? themeFile(dir, glassRim) : null, clamp(glassShine, 0, 100), glassSweep, WeatherLooks.parse(weatherScene, dir));
     }
 
     /** The deck as read from a theme: its titles, and its moods pointing at them by position. */

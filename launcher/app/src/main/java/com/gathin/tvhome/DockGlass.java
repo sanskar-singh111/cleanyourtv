@@ -54,7 +54,11 @@ final class DockGlass {
 
     private final ViewGroup scene;
     private final ImageView view;
-    private final File strip, rim;
+    private File strip, rim;
+    /** weather_scene: another look's panel, fading in over this one, and where the picture stands. */
+    private final ImageView next;
+    private int bakedW, bakedH, bakedMargin, bakedLeft, bakedTop;
+    private float bakedRadius;
     private final int intensity, transparency, shine;
     private final float density;
     private final int screenW, screenH;
@@ -83,6 +87,11 @@ final class DockGlass {
         view.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
         view.setAlpha(0f);
         frame.addView(view, 0, new FrameLayout.LayoutParams(0, 0));
+        next = new ImageView(context);
+        next.setFocusable(false);
+        next.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        next.setVisibility(View.GONE);
+        frame.addView(next, 1, new FrameLayout.LayoutParams(0, 0));
         lightBox = sweep ? new FrameLayout(context) : null;
         light = sweep ? new ImageView(context) : null;
         if (sweep) {
@@ -158,8 +167,15 @@ final class DockGlass {
                 // Where the panel stands on the wallpaper, which is the strip's frame.
                 Rect onScene = new Rect(0, 0, lp.width, lp.height);
                 scene.offsetDescendantRectToMyCoords(view, onScene);
+                bakedW = lp.width;
+                bakedH = lp.height;
+                bakedMargin = margin;
+                bakedLeft = onScene.left;
+                bakedTop = onScene.top;
+                bakedRadius = radius;
+                File s = strip, r = rim;
                 baker.execute(() -> {
-                    Bitmap baked = bake(lp.width, lp.height, margin, onScene.left, onScene.top, radius);
+                    Bitmap baked = bake(s, r, lp.width, lp.height, margin, onScene.left, onScene.top, radius);
                     view.post(() -> show(baked));
                 });
             });
@@ -229,8 +245,37 @@ final class DockGlass {
         view.animate().alpha(1f).setDuration(220).start();
     }
 
+    /** weather_scene: the panel made from another look's pictures. It fades in over the old one, then takes its place. */
+    void glass(File strip, File rim, int fadeMs) {
+        if (strip == null || strip.equals(this.strip) && rim != null && rim.equals(this.rim)) return;
+        this.strip = strip;
+        this.rim = rim;
+        if (bakedW == 0) return;
+        int w = bakedW, h = bakedH, margin = bakedMargin, left = bakedLeft, top = bakedTop;
+        float radius = bakedRadius;
+        baker.execute(() -> {
+            Bitmap baked = bake(strip, rim, w, h, margin, left, top, radius);
+            view.post(() -> fadeTo(baked, fadeMs));
+        });
+    }
+
+    private void fadeTo(Bitmap baked, int fadeMs) {
+        if (baked == null) return;
+        next.animate().cancel();
+        next.setLayoutParams(new FrameLayout.LayoutParams((FrameLayout.LayoutParams) view.getLayoutParams()));
+        next.setImageBitmap(baked);
+        next.setAlpha(0f);
+        next.setVisibility(View.VISIBLE);
+        next.animate().alpha(1f).setDuration(fadeMs).withEndAction(() -> {
+            view.setImageBitmap(baked);
+            view.setAlpha(1f);
+            next.setVisibility(View.GONE);
+            next.setImageBitmap(null);
+        }).start();
+    }
+
     /** The picture, w x h with the panel `margin` inside it; (left, top) is the picture's place on the wallpaper. */
-    private Bitmap bake(int w, int h, int margin, int left, int top, float radius) {
+    private Bitmap bake(File strip, File rim, int w, int h, int margin, int left, int top, float radius) {
         Bitmap in = null, bent = null;
         try {
             BitmapFactory.Options options = new BitmapFactory.Options();

@@ -530,6 +530,11 @@
     <!-- A slow light across the glass panel every 8 seconds (false, default). It pauses in apps, in More apps, on the
          lineup and during the idle fade: "glass_sweep". -->
     <bool name="glass_sweep">false</bool>
+    <!-- The real weather on a scene wallpaper (empty, default, is the wallpaper as it is). A theme sets "weather_scene" with
+         "weather_city" and "scene": an object of pictures and numbers made on a computer, which only fills in the launcher's
+         layers: the sky, clouds, mist, haze, rain, snow and lightning for each kind of weather, and a copy of big_clock_glass
+         and the dock's glass for each. Nothing animates while Home isn't on screen. -->
+    <string name="weather_scene" translatable="false" />
     <!-- The buttons at the top right (true, default). A theme with "top_buttons": false has none; Up from the row
          under them then does nothing. -->
     <bool name="top_buttons">true</bool>
