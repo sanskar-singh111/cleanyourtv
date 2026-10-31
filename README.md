@@ -849,5 +849,5 @@ The people whose work is in this repo:
 
 ## Licence
 
-MIT, see [`LICENSE`](LICENSE). The Outfit typeface is under the SIL Open Font License, see
-`launcher/FONT-LICENSE-OFL.txt`.
+MIT, see [`LICENSE`](LICENSE). The Outfit, Inter and Roboto Flex typefaces are under the SIL Open Font License, see
+`launcher/FONT-LICENSE-OFL.txt`, `launcher/FONT-LICENSE-INTER-OFL.txt` and `launcher/FONT-LICENSE-ROBOTO-FLEX-OFL.txt`.

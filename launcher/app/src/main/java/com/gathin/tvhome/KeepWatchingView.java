@@ -62,6 +62,8 @@ final class KeepWatchingView extends View {
 
     private final Listener listener;
     private final String heading;
+    /** dock_align center: the heading in the middle, and fewer cards than fill the row centred under it. */
+    private final boolean centered;
     private final float density;
     private final int growMs;
     private final Paint cardFill = new Paint(Paint.ANTI_ALIAS_FLAG), cardLine = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -83,10 +85,11 @@ final class KeepWatchingView extends View {
     /** An item was opened from here: focus comes back to the row with Home. */
     boolean opened;
 
-    KeepWatchingView(Context context, String heading, Typeface regular, Typeface medium, int growMs, Listener listener) {
+    KeepWatchingView(Context context, String heading, boolean centered, Typeface regular, Typeface medium, int growMs, Listener listener) {
         super(context);
         this.listener = listener;
         this.heading = heading;
+        this.centered = centered;
         this.growMs = growMs;
         density = getResources().getDisplayMetrics().density;
         setFocusable(true);
@@ -102,6 +105,7 @@ final class KeepWatchingView extends View {
         headingPaint.setTypeface(regular);
         headingPaint.setTextSize(13 * density);
         headingPaint.setColor(0xD9FFFFFF);
+        headingPaint.setShadowLayer(3 * density, 0, density, 0x59000000);
         appPaint.setTypeface(medium);
         appPaint.setTextSize(10 * density);
         appPaint.setLetterSpacing(0.08f);
@@ -151,6 +155,12 @@ final class KeepWatchingView extends View {
 
     private float cardWidth() {
         return (getWidth() - GAP * density * (PER_SCREEN - 1)) / PER_SCREEN;
+    }
+
+    /** Where the first card starts: at the left, or with few cards and dock_align center so they sit in the middle. */
+    private float lead(float cardW) {
+        int n = items.size();
+        return centered && n < PER_SCREEN ? (getWidth() - (n * cardW + (n - 1) * GAP * density)) / 2 : 0;
     }
 
     /** The row's slide that keeps this card on screen, the selected one in the last place at most. */
@@ -219,15 +229,16 @@ final class KeepWatchingView extends View {
     protected void onDraw(Canvas canvas) {
         if (items.isEmpty()) return;
         float top = HEADING_H * density + ROOM * density, cardH = CARD_H * density, cardW = cardWidth();
-        canvas.drawText(heading, 2 * density, 16 * density, headingPaint);
-        float pitch = cardW + GAP * density;
+        float headingX = centered ? (getWidth() - headingPaint.measureText(heading)) / 2 : 2 * density;
+        canvas.drawText(heading, headingX, 16 * density, headingPaint);
+        float pitch = cardW + GAP * density, lead = lead(cardW);
         for (int i = 0; i < items.size(); i++) {
-            float x = (i - slide) * pitch;
+            float x = lead + (i - slide) * pitch;
             if (x > getWidth() || x + cardW < 0 || i == selected) continue;
             drawCard(canvas, items.get(i), x, top, cardW, cardH, 1f);
         }
         // The selected card last, over its neighbours as it grows.
-        float x = (selected - slide) * pitch, g = 1f + (GROW - 1f) * grow;
+        float x = lead + (selected - slide) * pitch, g = 1f + (GROW - 1f) * grow;
         if (grow > 0f) drawGlow(canvas, x, top, cardW, cardH, g);
         drawCard(canvas, items.get(selected), x, top, cardW, cardH, g);
     }

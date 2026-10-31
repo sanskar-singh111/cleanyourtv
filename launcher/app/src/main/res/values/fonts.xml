@@ -6,6 +6,10 @@
     <string name="font_regular" translatable="false">@font/outfit_regular</string>
     <string name="font_light" translatable="false">@font/outfit_light</string>
     <string name="font_extralight" translatable="false">@font/outfit_extralight</string>
-    <string name="font_thin" translatable="false">@font/outfit_thin</string>
     <string name="font_medium" translatable="false">@font/outfit_medium</string>
+    <!-- big_clock and keep_watching: Inter, which has the Vietnamese letters too, so values-vi leaves these. -->
+    <string name="font_inter_regular" translatable="false">@font/inter_regular</string>
+    <string name="font_inter_medium" translatable="false">@font/inter_medium</string>
+    <!-- big_clock's digits: Roboto Flex fixed tall and condensed, only 0-9 and the colon. -->
+    <string name="font_clock" translatable="false">@font/clock_digits</string>
 </resources>

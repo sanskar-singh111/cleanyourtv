@@ -283,6 +283,8 @@ final class Config {
     /** big_clock: a large thin clock in the screen's centre, behind the scene's front layer, and big_clock_size. */
     final boolean bigClock;
     final int bigClockSize;
+    /** big_clock_top: where the digits start, in percent of the screen's height. */
+    final int bigClockTop;
     /** keep_watching: the row of Android TV's Watch Next above the dock, and the words above it. */
     final boolean keepWatching;
     final String keepWatchingHeading;
@@ -291,6 +293,13 @@ final class Config {
     final int iconDockSize;
     /** Package to its own picture for the icon_dock, instead of the app's icon. */
     final Map<String, File> dockIcons;
+    /** dock_align "center": the icon_dock and the Keep watching row in the middle, not from the left. */
+    final boolean dockCentered;
+    /** glass_intensity (0 is off) and glass_strip, the blurred picture for the panel behind the icon_dock. */
+    final int glassIntensity;
+    final File glassStrip;
+    /** top_buttons: false hides the buttons at the top right. */
+    final boolean topButtons;
 
     private Config(List<String> dockApps, boolean fillDock, List<String> hiddenApps, List<String> libraryApps, String liveTvPackage,
                    String liveTvAction, String liveTvInputId, Map<String, String> launchActions, Map<String, String> appLabels,
@@ -315,7 +324,8 @@ final class Config {
                    boolean watchlistRemove, int watchlistRemoveHoldSeconds, boolean moodDeck, MoodDeckData moodDeckData, String moodDeckHeading,
                    boolean moodPosters, boolean moodWatched, String moodPostersHeading, boolean moodSurpriseReel,
                    Map<String, File> scene, boolean bigClock, int bigClockSize, boolean keepWatching, String keepWatchingHeading,
-                   boolean iconDock, int iconDockSize, Map<String, File> dockIcons) {
+                   boolean iconDock, int iconDockSize, Map<String, File> dockIcons, int bigClockTop, boolean dockCentered,
+                   int glassIntensity, File glassStrip, boolean topButtons) {
         this.scene = Collections.unmodifiableMap(scene);
         this.bigClock = bigClock;
         this.bigClockSize = bigClockSize;
@@ -324,6 +334,11 @@ final class Config {
         this.iconDock = iconDock;
         this.iconDockSize = iconDockSize;
         this.dockIcons = Collections.unmodifiableMap(dockIcons);
+        this.bigClockTop = bigClockTop;
+        this.dockCentered = dockCentered;
+        this.glassIntensity = glassStrip == null ? 0 : glassIntensity;
+        this.glassStrip = glassStrip;
+        this.topButtons = topButtons;
         this.watchlist = watchlist && !watchlistItems.isEmpty();
         this.moodDeckMoods = Collections.unmodifiableList(MoodDeck.usable(moodDeckData.moods));
         this.moodDeckTitles = Collections.unmodifiableList(moodDeckData.titles);
@@ -572,11 +587,16 @@ final class Config {
         List<String> scene = new ArrayList<>(Arrays.asList(res.getStringArray(R.array.scene)));
         boolean bigClock = res.getBoolean(R.bool.big_clock);
         int bigClockSize = res.getInteger(R.integer.big_clock_size);
+        int bigClockTop = res.getInteger(R.integer.big_clock_top);
         boolean keepWatching = res.getBoolean(R.bool.keep_watching);
         String keepWatchingHeading = res.getString(R.string.keep_watching_heading);
         boolean iconDock = res.getBoolean(R.bool.icon_dock);
         int iconDockSize = res.getInteger(R.integer.icon_dock_size);
         List<String> dockIcons = new ArrayList<>(Arrays.asList(res.getStringArray(R.array.dock_icons)));
+        String dockAlign = res.getString(R.string.dock_align);
+        int glassIntensity = res.getInteger(R.integer.glass_intensity);
+        String glassStrip = res.getString(R.string.glass_strip);
+        boolean topButtons = res.getBoolean(R.bool.top_buttons);
         boolean applied = false;
 
         File dir = dir(ctx);
@@ -697,11 +717,16 @@ final class Config {
             scene = packageEntries(json, "scene", scene);
             bigClock = bool(json, "big_clock", bigClock);
             bigClockSize = integer(json, "big_clock_size", bigClockSize, 15, 50);
+            bigClockTop = integer(json, "big_clock_top", bigClockTop, 5, 40);
             keepWatching = bool(json, "keep_watching", keepWatching);
             keepWatchingHeading = string(json, "keep_watching_heading", keepWatchingHeading);
             iconDock = bool(json, "icon_dock", iconDock);
             iconDockSize = integer(json, "icon_dock_size", iconDockSize, 40, 100);
             dockIcons = packageEntries(json, "dock_icons", dockIcons);
+            dockAlign = string(json, "dock_align", dockAlign);
+            glassIntensity = integer(json, "glass_intensity", glassIntensity, 0, 100);
+            glassStrip = string(json, "glass_strip", glassStrip);
+            topButtons = bool(json, "top_buttons", topButtons);
         }
         // A theme push or reset invalidates choices made on the TV. On first use, remember the
         // current theme without clearing choices from an older launcher version.
@@ -777,7 +802,8 @@ final class Config {
                 moodDeck, moodDeck && watchlist && json != null ? moodDeck(json, dir) : new MoodDeckData(), moodDeckHeading,
                 moodPosters, moodWatched, moodPostersHeading, moodSurpriseReel,
                 themeFiles(dir, packageMap(scene)), bigClock, clamp(bigClockSize, 15, 50), keepWatching, keepWatchingHeading,
-                iconDock, clamp(iconDockSize, 40, 100), themeFiles(dir, packageMap(dockIcons)));
+                iconDock, clamp(iconDockSize, 40, 100), themeFiles(dir, packageMap(dockIcons)), clamp(bigClockTop, 5, 40),
+                "center".equals(dockAlign), clamp(glassIntensity, 0, 100), iconDock ? themeFile(dir, glassStrip) : null, topButtons);
     }
 
     /** The deck as read from a theme: its titles, and its moods pointing at them by position. */

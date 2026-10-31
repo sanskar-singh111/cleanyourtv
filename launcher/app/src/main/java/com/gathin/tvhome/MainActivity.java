@@ -192,6 +192,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private final java.util.concurrent.ExecutorService keepWatchingReads = java.util.concurrent.Executors.newSingleThreadExecutor();
     private Map<String, String> keepWatchingLabels = Collections.emptyMap();
     private boolean iconDock;
+    private DockGlass dockGlass;
+    private boolean topButtonsShown;
     /** More apps was opened from the dock's "..." tile, not the top bar. */
     private boolean moreFromDock;
     private GlassView glass;
@@ -497,7 +499,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         wallpaperPlayer = new WallpaperPlayer(this, root, cfg);
         sky = findViewById(R.id.sky);
         sky.setIntensity(cfg.skyIntensity);
-        if (cfg.bigClock) bigClock = new BigClock(this, cfg.bigClockSize, UiFont.get(this, R.string.font_regular), UiFont.get(this, R.string.font_thin));
+        if (cfg.bigClock) bigClock = new BigClock(this, cfg.bigClockSize, cfg.bigClockTop, UiFont.get(this, R.string.font_inter_regular), UiFont.get(this, R.string.font_clock));
         if (!cfg.scene.isEmpty()) {
             scene = new SceneLayers(this, root, root.indexOfChild(sky), bigClock == null ? null : bigClock.view, cfg.scene);
         } else if (bigClock != null) {
@@ -675,11 +677,17 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                     AnimationUtils.loadAnimation(this, R.anim.tile_enter), 0.06f));
         }
         if (cfg.iconDock) {
-            // The row is as wide as its icons and their gaps, from the left: each cell is one icon's pitch. Set before
-            // the first layout: a grid of fixed size doesn't lay its tiles out again for a change of padding.
-            int pitch = Math.round(Math.round(cfg.iconDockSize * density) * (1f + AppAdapter.ICON_GAP));
+            // The row is as wide as its icons and their gaps: each cell is one icon's pitch. Set before the first
+            // layout: a grid of fixed size doesn't lay its tiles out again for a change of padding.
+            int icon = Math.round(cfg.iconDockSize * density);
+            int pitch = Math.round(icon * (1f + AppAdapter.ICON_GAP));
             int width = getResources().getDisplayMetrics().widthPixels - ((View) grid.getParent().getParent()).getPaddingLeft() * 2;
-            grid.setPadding(0, grid.getPaddingTop(), Math.max(0, width - pitch * COLUMNS), grid.getPaddingBottom());
+            int side = cfg.glassIntensity > 0 ? Math.round(DockGlass.SIDE_DP * density) : 0;
+            int start = DockGlass.rowStart(width, pitch * COLUMNS - (pitch - icon), side, cfg.dockCentered);
+            grid.setPadding(start, grid.getPaddingTop(), Math.max(0, width - start - pitch * COLUMNS), grid.getPaddingBottom());
+            if (cfg.glassIntensity > 0) {
+                dockGlass = new DockGlass(this, (ViewGroup) grid.getParent(), root, cfg.glassStrip, cfg.glassIntensity);
+            }
             // The first icon grows and glows past the row's left edge.
             ((ViewGroup) grid.getParent()).setClipChildren(false);
         }
@@ -720,6 +728,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             if (!MainActivity.this.dockRow) want = (int) (AppAdapter.TOP_ROOM_DP * density);
             if (grid.getPaddingTop() != want) {
                 grid.setPadding(grid.getPaddingLeft(), want, grid.getPaddingRight(), grid.getPaddingBottom());
+            }
+            if (dockGlass != null) {
+                int icons = COLUMNS * Math.round(iconPx * (1f + AppAdapter.ICON_GAP)) - Math.round(iconPx * AppAdapter.ICON_GAP);
+                dockGlass.place(grid.getPaddingLeft(), want + grid.getTop() + Math.round(8 * density), icons, iconPx, iconPx * AppAdapter.ICON_RADIUS);
             }
             if (keepWatching != null) placeKeepWatching(want);
             // Cold start or column count > 4: the first focus can run before the grid has its final width or
@@ -829,6 +841,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             makeIconOnly((TextView) btnSettings);
         }
         if (cfg.iconOnlyInputs) makeIconOnly((TextView) btnInputs);
+        topButtonsShown = cfg.topButtons;
+        if (!topButtonsShown) findViewById(R.id.topButtons).setVisibility(View.GONE);
         btnSettings.setOnLongClickListener(v -> {
             showSettingsMenu();
             return true;
@@ -1498,6 +1512,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         wallpaperPlayer.close();
         if (scene != null) scene.close();
         if (keepWatching != null) keepWatching.close();
+        if (dockGlass != null) dockGlass.close();
         keepWatchingReads.shutdownNow();
         if (weather != null) weather.close();
         saverRun++;
@@ -1959,6 +1974,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     /** Back (to the button) or Home (refocus false: onNewIntent puts focus on the first tile itself). */
     private void closeMoreApps(boolean refocus) {
         if (!moreAppsOpen()) return;
+        // With no top buttons, hiding the grid lets Android focus the first dock tile, which moves lastFocused.
+        int backTo = lastFocused;
         moreGrid.setVisibility(View.GONE);
         moreGrid.setAdapter(null);   // lets go of the grid's tiles; Home's adapter keeps the artwork
         moreAdapter.clear();
@@ -1966,7 +1983,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         fadeScrollShade(false);
         showHome(true);
         if (refocus && adapter.isLibraryAt(adapter.appCount())) focusLibrary();
-        else if (refocus && moreFromDock) focusTile(lastFocused);   // icon_dock: back to its "..." tile
+        else if (refocus && moreFromDock) focusTile(backTo);   // icon_dock: back to its "..." tile
         else if (refocus) btnLibraryTop.requestFocus();   // library_button: back to the icon that opened it
         moreFromDock = false;
     }
@@ -2532,9 +2549,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     /** keep_watching: the row sits in the same frame as the dock, so it fades and hides with it. */
     private void setUpKeepWatching(Config cfg) {
         keepWatchingLabels = cfg.appLabels;
-        keepWatching = new KeepWatchingView(this, cfg.keepWatchingHeading, UiFont.get(this, R.string.font_regular),
-                UiFont.get(this, R.string.font_medium), cfg.focusGrowMs, new KeepWatchingView.Listener() {
-            @Override public void onKeepWatchingUp() { firstShownTopButton().requestFocus(); }
+        keepWatching = new KeepWatchingView(this, cfg.keepWatchingHeading, cfg.dockCentered, UiFont.get(this, R.string.font_inter_regular),
+                UiFont.get(this, R.string.font_inter_medium), cfg.focusGrowMs, new KeepWatchingView.Listener() {
+            @Override public void onKeepWatchingUp() { if (topButtonsShown) firstShownTopButton().requestFocus(); }
             @Override public void onKeepWatchingDown() { focusTile(lastFocused); }
             @Override public void onKeepWatchingOpen(KeepWatching.Item item) { openWatchNext(item); }
         });
@@ -2545,7 +2562,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     /** The row's bottom edge at the top of the dock, whose first row starts at `dockTop` in the grid. */
     private void placeKeepWatching(int dockTop) {
         FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) keepWatching.getLayoutParams();
-        int top = dockTop - keepWatching.rowHeight();
+        // The glass panel stands taller than the icons: the row keeps clear of it.
+        int top = dockTop - keepWatching.rowHeight() - (dockGlass != null ? Math.round(DockGlass.ROW_LIFT_DP * getResources().getDisplayMetrics().density) : 0);
         if (lp.topMargin == top) return;
         lp.topMargin = top;
         grid.post(() -> keepWatching.setLayoutParams(lp));
@@ -3124,9 +3142,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             }
             if (position < COLUMNS && strictDockNav) {
                 // strict_dock_nav: always the top-right buttons, never wherever the focus finder lands.
-                firstShownTopButton().requestFocus();
+                if (topButtonsShown) firstShownTopButton().requestFocus();
                 return true;
             }
+            if (position < COLUMNS && !topButtonsShown) return true;
             if (position < COLUMNS) return false;          // dock row: let focus move to the top bar
             target = position - COLUMNS;
         } else {

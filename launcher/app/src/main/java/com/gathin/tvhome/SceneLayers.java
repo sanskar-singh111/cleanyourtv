@@ -125,7 +125,7 @@ final class SceneLayers {
     }
 
     /** One copy in GPU memory instead of a software bitmap plus its texture, as the wallpaper does. */
-    private static Bitmap onGpu(Bitmap bitmap) {
+    static Bitmap onGpu(Bitmap bitmap) {
         if (bitmap == null) return null;
         Bitmap gpu = bitmap.copy(Bitmap.Config.HARDWARE, false);
         if (gpu == null) return bitmap;

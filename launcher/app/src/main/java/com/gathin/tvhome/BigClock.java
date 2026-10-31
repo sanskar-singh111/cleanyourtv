@@ -17,21 +17,19 @@ import android.widget.TextView;
  * one view for SceneLayers to put between its layers, so the front mountain overlaps the digits.
  */
 final class BigClock {
-    /** Where the line and the digits start, as shares of the screen's height. */
-    private static final float LINE_TOP = 0.095f, DIGITS_TOP = 0.158f;
-    /** Outfit's digits are about this share of its text size. */
-    private static final float DIGIT_SHARE = 0.70f;
-    /** Slimmer than Outfit draws them: tall digits leave the peak room. */
-    private static final float DIGITS_WIDTH = 0.88f;
+    /** How far above the digits the line starts, as a share of the screen's height. */
+    private static final float LINE_ABOVE = 0.063f;
+    /** The digits of res/font/clock_digits.ttf are this share of its text size. */
+    private static final float DIGIT_SHARE = 0.765f;
     /** The digits let a little of the sky through, as glass would. */
-    private static final int DIGITS_COLOR = 0xE6FFFFFF, LINE_COLOR = 0xF2FFFFFF, SHADOW = 0x59000000;
+    private static final int DIGITS_COLOR = 0xD2FFFFFF, LINE_COLOR = 0xF2FFFFFF, SHADOW = 0x59000000;
 
     final FrameLayout view;
     private final LinearLayout weather;
     private final WeatherIcon icon = new WeatherIcon();
     private final TextView weatherText;
 
-    BigClock(Context context, int sizePercent, Typeface regular, Typeface thin) {
+    BigClock(Context context, int sizePercent, int topPercent, Typeface regular, Typeface digitsFont) {
         float density = context.getResources().getDisplayMetrics().density;
         int screenH = context.getResources().getDisplayMetrics().heightPixels;
         view = new FrameLayout(context);
@@ -42,17 +40,16 @@ final class BigClock {
         TextClock digits = new TextClock(context);
         digits.setFormat12Hour("h:mm");
         digits.setFormat24Hour("HH:mm");
-        digits.setTypeface(thin);
+        digits.setTypeface(digitsFont);
         digits.setTextColor(DIGITS_COLOR);
         digits.setIncludeFontPadding(false);
-        digits.setLetterSpacing(-0.02f);
         float textSize = screenH * sizePercent / 100f / DIGIT_SHARE;
         digits.setTextSize(TypedValue.COMPLEX_UNIT_PX, textSize);
-        digits.setTextScaleX(DIGITS_WIDTH);
         FrameLayout.LayoutParams dlp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.CENTER_HORIZONTAL);
         // The digits' top, not the view's: above them the view keeps the font's whole ascent.
-        dlp.topMargin = Math.round(screenH * DIGITS_TOP + digits.getPaint().getFontMetrics().ascent + textSize * DIGIT_SHARE);
+        float digitsTop = topPercent / 100f;
+        dlp.topMargin = Math.round(screenH * digitsTop + digits.getPaint().getFontMetrics().ascent + textSize * DIGIT_SHARE);
         view.addView(digits, dlp);
 
         LinearLayout line = new LinearLayout(context);
@@ -80,7 +77,7 @@ final class BigClock {
         line.addView(weather);
         FrameLayout.LayoutParams llp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.CENTER_HORIZONTAL);
-        llp.topMargin = Math.round(screenH * LINE_TOP);
+        llp.topMargin = Math.round(screenH * (digitsTop - LINE_ABOVE));
         view.addView(line, llp);
     }
 
