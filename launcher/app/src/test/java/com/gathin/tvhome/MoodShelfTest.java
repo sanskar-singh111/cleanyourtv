@@ -24,6 +24,43 @@ public class MoodShelfTest {
     }
 
     @Test
+    public void aSpinPassesEnoughPostersAndStopsOnItsTarget() {
+        for (int count : new int[]{1, 2, 3, 9, 10, 20}) {
+            for (int centre = 0; centre < count; centre++) {
+                for (int target = 0; target < count; target++) {
+                    int steps = MoodShelf.spinSteps(centre, target, count);
+                    assertTrue(steps >= MoodShelf.SPIN_STEPS);
+                    assertTrue(steps < MoodShelf.SPIN_STEPS + count);
+                    assertEquals(target, MoodShelf.wrap(centre - steps, count));
+                }
+            }
+        }
+        assertEquals(0, MoodShelf.spinSteps(0, 0, 0));
+    }
+
+    @Test
+    public void aSpinKeepsOnlyThePostersAroundTheCentreDecodedAheadOnTheLeft() {
+        Set<Integer> around = MoodShelf.wantedSpinning(5, 20);
+        assertEquals(2 * MoodShelf.SIDE + 1 + MoodShelf.SPIN_AHEAD, around.size());
+        assertTrue(around.contains(5 - MoodShelf.SIDE - MoodShelf.SPIN_AHEAD + 20));
+        assertTrue(around.contains(5 + MoodShelf.SIDE));
+        assertFalse(around.contains(5 + MoodShelf.SIDE + 1));
+        // A short row goes round during the spin, so all of it is near.
+        assertEquals(new HashSet<>(Arrays.asList(0, 1, 2)), MoodShelf.wantedSpinning(1, 3));
+        assertTrue(MoodShelf.wantedSpinning(0, 0).isEmpty());
+    }
+
+    @Test
+    public void aShortRowsRepeatsGoWhenTheSpinStops() {
+        // A row of 3 stopping with poster 1 at place -20: only places -21, -20 and -19 stay.
+        assertFalse(MoodShelf.staysAfterSpin(-22, -20, 1, 3));
+        assertTrue(MoodShelf.staysAfterSpin(-21, -20, 1, 3));
+        assertTrue(MoodShelf.staysAfterSpin(-19, -20, 1, 3));
+        assertFalse(MoodShelf.staysAfterSpin(-18, -20, 1, 3));
+        assertTrue(MoodShelf.staysAfterSpin(-18, -20, 1, 20));
+    }
+
+    @Test
     public void movingOnByItselfStartsAgainAtTheEndOfAShortRow() {
         assertEquals(1, MoodShelf.next(0, 3));
         assertEquals(0, MoodShelf.next(2, 3));

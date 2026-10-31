@@ -469,10 +469,14 @@
     <!-- Mood posters (false, default). A theme sets "mood_posters": true with the mood deck: Right or OK on a mood card
          opens a row of that mood's posters instead of spinning: touching posters across the screen, the centre one biggest
          with a small play triangle, the others smaller and angled, the centre title's darkened backdrop behind. The row moves on slowly by itself until a key
-         is pressed. Left and Right browse, OK opens the centre title, Down goes to "Surprise me" (the reel and countdown
-         of the deck), Up or Back return to the cards. Only the posters on screen and their neighbours are decoded.
+         is pressed. Left and Right browse, OK opens the centre title, Down goes to "Surprise me" (see mood_surprise_reel),
+         Up or Back return to the cards. Only the posters on screen and their neighbours are decoded.
          Optional "mood_posters_heading" is the line above the mood's name (the deck's heading when it is empty). -->
     <bool name="mood_posters">false</bool>
+    <!-- "Surprise me" on the mood posters row (true, default: the deck's reel and countdown). A theme sets
+         "mood_surprise_reel": false for the row itself to spin left to right, slow down and stop on a title at random,
+         then "Opening in 3…" under it: OK opens it now, Right spins again, Left or Back go back to browsing the row. -->
+    <bool name="mood_surprise_reel">true</bool>
     <!-- "I've watched it" (false, default). A theme sets "mood_watched": true with "mood_posters": holding OK on the
          centre poster for "watchlist_remove_hold" seconds fills a ring, then offers "I've watched it" / "Cancel". The
          title is hidden from every mood (and the watchlist) at once and listed in watchlist_removed.json, as

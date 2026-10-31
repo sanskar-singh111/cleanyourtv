@@ -17,6 +17,11 @@ final class MoodShelf {
     static final int ROUND_FROM = 2 * SIDE + 2;
     /** Moving on by itself: a rest, then a slow glide to the next poster. */
     static final long REST_MS = 2600, GLIDE_MS = 1100, MOVE_MS = 320;
+    /** "Surprise me" on the row: how long it spins and how many posters it passes at least. */
+    static final long SPIN_MS = 3000;
+    static final int SPIN_STEPS = 14;
+    /** While it spins, the posters decoded ahead of it (they come in from the left), and the last posters whose backdrops show. */
+    static final int SPIN_AHEAD = 3, SPIN_BACKDROPS = 3;
     /**
      * Where a poster sits and how it looks by how far it is from the centre (0 the centre, 1 its neighbour, ...), as in
      * the reference picture: the posters touch, each drawn under the one nearer the centre. Across, in shares of the
@@ -93,6 +98,39 @@ final class MoodShelf {
             }
         }
         return out;
+    }
+
+    /** The posters the row passes turning left to right (each step one index down) to bring `target` to the centre. */
+    static int spinSteps(int centre, int target, int count) {
+        if (count <= 0) return 0;
+        int steps = wrap(centre - target, count);
+        while (steps < SPIN_STEPS) steps += count;
+        return steps;
+    }
+
+    /**
+     * The posters to hold decoded during a spin: those on screen and a few more ahead on the left, none behind. Even a
+     * short row goes round while it spins.
+     */
+    static Set<Integer> wantedSpinning(int centre, int count) {
+        Set<Integer> out = new LinkedHashSet<>();
+        if (count <= 0 || centre < 0) return out;
+        out.add(centre);
+        for (int k = 1; k <= SIDE + SPIN_AHEAD; k++) {
+            out.add(wrap(centre - k, count));
+            if (k <= SIDE) out.add(wrap(centre + k, count));
+        }
+        return out;
+    }
+
+    /**
+     * Whether a place in a spinning row, numbered on from `end` where `target` stops, is still there once the row stops.
+     * A short row repeats its posters to go round; the repeats fade as it stops.
+     */
+    static boolean staysAfterSpin(int place, int end, int target, int count) {
+        if (goesRound(count)) return true;
+        int at = place - end + target;
+        return at >= 0 && at < count;
     }
 
     /** After the poster at `gone` leaves a row of `count`: the poster now at the centre (the one after it). */

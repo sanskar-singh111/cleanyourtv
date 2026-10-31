@@ -3,6 +3,7 @@ package com.gathin.tvhome;
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.animation.ArgbEvaluator;
+import android.animation.TimeInterpolator;
 import android.animation.ValueAnimator;
 import android.annotation.SuppressLint;
 import android.content.Context;
@@ -23,6 +24,7 @@ import android.graphics.Shader;
 import android.graphics.Typeface;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.SystemClock;
 import android.text.TextPaint;
 import android.text.TextUtils;
 import android.view.KeyEvent;
@@ -39,15 +41,18 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Random;
 import java.util.Set;
 
 /**
  * mood_posters: a mood's posters in a row across the whole screen, opened from its card on the mood deck. The centre
  * poster is the biggest, with a small play icon; the others touch, each smaller and darker than the last, turned so their
  * outer edges are further away, and the outermost fade at the screen's edges. Behind, the centre title's darkened black-and-white backdrop. The row moves on slowly by itself until
- * a key is pressed. Left and Right browse, OK opens the centre title, Down goes to "Surprise me" (the deck's reel and
- * countdown), Up or Back go back to the cards. With mood_watched, holding OK on the centre poster offers "I've watched
- * it". Only the posters on screen and one more each way are decoded, and at most the two backdrops of a crossfade.
+ * a key is pressed. Left and Right browse, OK opens the centre title, Down goes to "Surprise me", Up or Back go back to
+ * the cards. "Surprise me" is the deck's reel and countdown with mood_surprise_reel; without it the row itself spins left
+ * to right, slows down and stops on a title at random, then a countdown under it opens the title. With mood_watched,
+ * holding OK on the centre poster offers "I've watched it". Only the posters on screen and a few more are decoded (the
+ * spin too), and at most the two backdrops of a crossfade.
  */
 @SuppressLint("ViewConstructor")   // made in code only, never from a layout
 final class MoodShelfView extends View {
@@ -55,13 +60,16 @@ final class MoodShelfView extends View {
         /** Up or Back: back to the mood cards. */
         void onShelfBack();
         void onShelfOpen(MoodDeck.Title title);
-        /** "Surprise me": the deck's reel for this mood. */
+        /** "Surprise me" with mood_surprise_reel: the deck's reel for this mood. */
         void onShelfSurprise();
         /** "I've watched it": the title leaves every mood (this row has already let it go). */
         void onShelfWatched(MoodDeck.Title title);
     }
 
+    private enum Surprise { NONE, SPIN, COUNTDOWN }
+
     private static final long BACKDROP_MS = 450, RING_DELAY_MS = 350, FOCUS_MS = 180;
+    private static final long SURPRISE_SHOW_MS = 220, TICK_MS = 70, AFTER_OPEN_MS = 600;
     private static final float TILT_DEGREES = 32f;
     /** The play triangle's height against the centre poster's, and how solid it is (slightly see-through). */
     private static final float PLAY_SHARE = 0.18f;
@@ -71,6 +79,9 @@ final class MoodShelfView extends View {
     private final Listener listener;
     private final String heading;
     private final long watchedHoldMs;
+    /** mood_surprise_reel: "Surprise me" leaves for the deck's reel instead of spinning this row. */
+    private final boolean deckReel;
+    private final Random random = new Random();
     private final Handler main = new Handler(Looper.getMainLooper());
     private final float density;
 
@@ -83,6 +94,7 @@ final class MoodShelfView extends View {
     private final Paint buttonPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint ringPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint menuPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint barPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final TextPaint headingPaint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
     private final TextPaint namePaint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
     private final TextPaint titlePaint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
@@ -128,8 +140,23 @@ final class MoodShelfView extends View {
     private boolean holdShown, menuOpen, swallowOkUp;
     private int menuChoice;
 
+    /** "Surprise me" on the row: spinning, then counting down under the title it stopped on. */
+    private Surprise surprise = Surprise.NONE;
+    /** Where the spin stops: the place in the row (numbered on past its ends) and the poster that will be there. */
+    private int spinEnd, spinTarget = -1;
+    private int lastPicked = -1;
+    private long lastTickAt, countdownStart;
+    private float countdown;
+    /** 0 is the row at rest, 1 the button and play icon gone for the spin and countdown. */
+    private float surpriseShow;
+    /** OK went down during the countdown (the press that started the spin may still be held); the title has opened. */
+    private boolean okArmed, opened;
+    private ValueAnimator spinAnimator, countdownAnimator, surpriseShowAnimator;
+    private final Runnable afterOpen = () -> stopSurprise(false);
+
     private final AccelerateDecelerateInterpolator glideCurve = new AccelerateDecelerateInterpolator();
     private final DecelerateInterpolator moveCurve = new DecelerateInterpolator(1.8f);
+    private final DecelerateInterpolator spinCurve = new DecelerateInterpolator(1.5f);   // fast, then slowing down
     private final ArgbEvaluator argb = new ArgbEvaluator();
     private int glowColor;
 
@@ -137,11 +164,12 @@ final class MoodShelfView extends View {
     private float rowY, ph, pw, playH;
 
     MoodShelfView(Context context, List<MoodDeck.Title> titles, String heading, Typeface lightFont, Typeface mediumFont,
-                  long watchedHoldMs, Listener listener) {
+                  long watchedHoldMs, boolean deckReel, Listener listener) {
         super(context);
         this.titles = titles;
         this.heading = heading == null ? "" : heading;
         this.watchedHoldMs = Math.max(0, watchedHoldMs);
+        this.deckReel = deckReel;
         this.listener = listener;
         density = context.getResources().getDisplayMetrics().density;
         setFocusable(true);
@@ -163,10 +191,12 @@ final class MoodShelfView extends View {
         playPaint.setStyle(Paint.Style.FILL);
         playPaint.setColor(Color.WHITE);
         ringPaint.setStrokeCap(Paint.Cap.ROUND);
+        barPaint.setStrokeCap(Paint.Cap.ROUND);
     }
 
     /** Opens on a mood: its first poster in the middle, moving on by itself. */
     void show(MoodDeck.Mood m) {
+        stopSurprise(false);
         mood = m;
         items.clear();
         items.addAll(m.titles);
@@ -198,6 +228,7 @@ final class MoodShelfView extends View {
 
     /** Lets go of every picture and stops moving (the row is closed or memory is short). */
     void release() {
+        stopSurprise(false);
         released = true;
         stopAuto();
         cancelHold();
@@ -220,8 +251,7 @@ final class MoodShelfView extends View {
 
     private void loadPosters() {
         if (released || items.isEmpty()) return;
-        Set<Integer> want = new HashSet<>();
-        for (int i : MoodShelf.wanted(centre, items.size())) want.add(items.get(i));
+        Set<Integer> want = wantedPosters();
         posters.keySet().retainAll(want);
         posterShaders.keySet().retainAll(posters.values());
         List<Integer> missing = new ArrayList<>();
@@ -239,15 +269,22 @@ final class MoodShelfView extends View {
                 main.post(() -> {
                     loading.remove(i);
                     if (gen != posterGeneration || released || b == null) return;
-                    Set<Integer> still = new HashSet<>();
-                    for (int k : MoodShelf.wanted(centre, items.size())) still.add(items.get(k));
-                    if (still.contains(i)) {
+                    if (wantedPosters().contains(i)) {
                         posters.put(i, b);
                         invalidate();
                     }
                 });
             }
         }, "shelf-posters").start();
+    }
+
+    /** The title indexes to hold decoded now. */
+    private Set<Integer> wantedPosters() {
+        Set<Integer> want = new HashSet<>();
+        Set<Integer> around = surprise == Surprise.SPIN ? MoodShelf.wantedSpinning(centre, items.size())
+                : MoodShelf.wanted(centre, items.size());
+        for (int i : around) want.add(items.get(i));
+        return want;
     }
 
     private int distance(int titleIndex) {
@@ -327,9 +364,13 @@ final class MoodShelfView extends View {
         centre = target;
         loadPosters();
         showBackdrop(true);
+        glide(from, from + steps, ms, glide ? glideCurve : moveCurve);
+    }
+
+    private void glide(float from, float to, long ms, TimeInterpolator curve) {
         moving = true;
-        moveAnimator = ValueAnimator.ofFloat(from, from + steps).setDuration(ms);
-        moveAnimator.setInterpolator(glide ? glideCurve : moveCurve);
+        moveAnimator = ValueAnimator.ofFloat(from, to).setDuration(ms);
+        moveAnimator.setInterpolator(curve);
         moveAnimator.addUpdateListener(a -> {
             position = (float) a.getAnimatedValue();
             invalidate();
@@ -349,6 +390,179 @@ final class MoodShelfView extends View {
         if (next == centre || next < 0) return;
         playSoundEffect(direction > 0 ? SoundEffectConstants.NAVIGATION_RIGHT : SoundEffectConstants.NAVIGATION_LEFT);
         moveTo(next, direction, MoodShelf.MOVE_MS, false);
+    }
+
+    // ---- "Surprise me" on the row -------------------------------------------------------------------
+
+    /** The row spins left to right and stops on a title at random: again from the countdown, on another title. */
+    private void spin() {
+        if (items.isEmpty()) return;
+        if (moveAnimator != null && moveAnimator.isRunning()) moveAnimator.end();
+        stopSurpriseAnimators();
+        lastPicked = MoodDeck.pick(random, new MoodDeck.Mood(mood.name, mood.color, items), lastPicked);
+        spinTarget = items.indexOf(lastPicked);
+        int from = centre, count = items.size();
+        spinEnd = from - MoodShelf.spinSteps(from, spinTarget, count);
+        surprise = Surprise.SPIN;
+        onButton = false;
+        countdown = 0f;
+        okArmed = false;
+        animateSurpriseShow(1f);
+        spinAnimator = ValueAnimator.ofFloat(from, spinEnd).setDuration(MoodShelf.SPIN_MS);
+        spinAnimator.setInterpolator(spinCurve);
+        spinAnimator.addUpdateListener(a -> {
+            position = (float) a.getAnimatedValue();
+            int at = MoodShelf.wrap(Math.round(position), count);
+            if (at != centre) {
+                centre = at;
+                loadPosters();
+                long now = SystemClock.uptimeMillis();
+                if (now - lastTickAt >= TICK_MS) {
+                    lastTickAt = now;
+                    playSoundEffect(SoundEffectConstants.NAVIGATION_RIGHT);
+                }
+                // Backdrops are big: only the last few, when the row has slowed down.
+                if (Math.abs(position - spinEnd) <= MoodShelf.SPIN_BACKDROPS) showBackdrop(true);
+            }
+            invalidate();
+        });
+        spinAnimator.addListener(new AnimatorListenerAdapter() {
+            @Override public void onAnimationEnd(Animator animation) { landed(); }
+        });
+        spinAnimator.start();
+    }
+
+    /** It stopped: "Opening in 3…" under the title, then it opens. */
+    private void landed() {
+        surprise = Surprise.COUNTDOWN;
+        centre = spinTarget;
+        position = centre;
+        loadPosters();
+        showBackdrop(true);
+        playSoundEffect(SoundEffectConstants.CLICK);
+        countdownStart = SystemClock.uptimeMillis();
+        countdownAnimator = ValueAnimator.ofFloat(0f, 1f).setDuration(MoodDeck.COUNTDOWN_MS);
+        countdownAnimator.setInterpolator(null);
+        countdownAnimator.addUpdateListener(a -> {
+            countdown = (float) a.getAnimatedValue();
+            invalidate();
+        });
+        countdownAnimator.addListener(new AnimatorListenerAdapter() {
+            @Override public void onAnimationEnd(Animator animation) { openLanded(); }
+        });
+        countdownAnimator.start();
+        invalidate();
+    }
+
+    private void openLanded() {
+        MoodDeck.Title t = centreTitle();
+        if (opened || t == null) return;
+        opened = true;
+        listener.onShelfOpen(t);
+        // The app covers Home now; when it comes back, the row is at rest on the same poster.
+        main.postDelayed(afterOpen, AFTER_OPEN_MS);
+    }
+
+    private void stopSurpriseAnimators() {
+        for (ValueAnimator a : new ValueAnimator[]{spinAnimator, countdownAnimator}) {
+            if (a != null) {
+                a.removeAllListeners();
+                a.cancel();
+            }
+        }
+        spinAnimator = countdownAnimator = null;
+    }
+
+    /** Back to browsing on the poster in the middle; `animate` lets a spin glide to it and the button fade back. */
+    private void stopSurprise(boolean animate) {
+        main.removeCallbacks(afterOpen);
+        if (surprise == Surprise.NONE) return;
+        boolean spinning = surprise == Surprise.SPIN;
+        stopSurpriseAnimators();
+        surprise = Surprise.NONE;
+        opened = okArmed = false;
+        countdown = 0f;
+        onButton = false;
+        buttonFocus = 0f;
+        if (focusAnimator != null) focusAnimator.cancel();
+        float at = position;
+        position = centre;
+        if (animate) {
+            animateSurpriseShow(0f);
+            if (spinning) {
+                glide(at - Math.round(at) + centre, centre, MoodShelf.MOVE_MS, moveCurve);
+                showBackdrop(true);
+            }
+        } else {
+            if (surpriseShowAnimator != null) surpriseShowAnimator.cancel();
+            surpriseShow = 0f;
+        }
+        invalidate();
+    }
+
+    private void animateSurpriseShow(float to) {
+        if (surpriseShowAnimator != null) surpriseShowAnimator.cancel();
+        surpriseShowAnimator = ValueAnimator.ofFloat(surpriseShow, to).setDuration(SURPRISE_SHOW_MS);
+        surpriseShowAnimator.addUpdateListener(a -> {
+            surpriseShow = (float) a.getAnimatedValue();
+            invalidate();
+        });
+        surpriseShowAnimator.start();
+    }
+
+    /** Whatever takes Home's place, nothing may open by itself behind it. */
+    @Override
+    protected void onWindowVisibilityChanged(int visibility) {
+        super.onWindowVisibilityChanged(visibility);
+        if (visibility != VISIBLE) stopSurprise(false);
+    }
+
+    /** During the spin or countdown: Left, Up or Back stop it, OK opens now, Right spins again. */
+    private boolean surpriseKeyDown(int keyCode, KeyEvent event) {
+        switch (keyCode) {
+            case KeyEvent.KEYCODE_DPAD_LEFT:
+            case KeyEvent.KEYCODE_DPAD_UP:
+                playSoundEffect(SoundEffectConstants.NAVIGATION_LEFT);
+                stopSurprise(true);
+                return true;
+            case KeyEvent.KEYCODE_DPAD_RIGHT:
+                if (surprise == Surprise.COUNTDOWN && !opened && event.getRepeatCount() == 0) spin();
+                return true;
+            case KeyEvent.KEYCODE_DPAD_DOWN:
+                return true;
+            case KeyEvent.KEYCODE_DPAD_CENTER:
+            case KeyEvent.KEYCODE_ENTER:
+            case KeyEvent.KEYCODE_NUMPAD_ENTER:
+                if (event.getRepeatCount() == 0) {
+                    okArmed = surprise == Surprise.COUNTDOWN;
+                    event.startTracking();
+                }
+                return true;
+            case KeyEvent.KEYCODE_BACK:
+                event.startTracking();
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private boolean surpriseKeyUp(int keyCode, KeyEvent event) {
+        switch (keyCode) {
+            case KeyEvent.KEYCODE_DPAD_CENTER:
+            case KeyEvent.KEYCODE_ENTER:
+            case KeyEvent.KEYCODE_NUMPAD_ENTER:
+                if (okArmed && !event.isCanceled() && surprise == Surprise.COUNTDOWN) {
+                    playSoundEffect(SoundEffectConstants.CLICK);
+                    openLanded();
+                }
+                okArmed = false;
+                return true;
+            case KeyEvent.KEYCODE_BACK:
+                if (!event.isCanceled()) stopSurprise(true);
+                return true;
+            default:
+                return false;
+        }
     }
 
     private void focusButton(boolean on) {
@@ -374,6 +588,7 @@ final class MoodShelfView extends View {
             stopAuto();
             if (moveAnimator != null && moveAnimator.isRunning()) moveAnimator.end();
         }
+        if (surprise != Surprise.NONE) return surpriseKeyDown(keyCode, event) || super.onKeyDown(keyCode, event);
         if (menuOpen) return menuKeyDown(keyCode) || super.onKeyDown(keyCode, event);
         switch (keyCode) {
             case KeyEvent.KEYCODE_DPAD_LEFT:
@@ -415,6 +630,7 @@ final class MoodShelfView extends View {
 
     @Override
     public boolean onKeyUp(int keyCode, KeyEvent event) {
+        if (surprise != Surprise.NONE) return surpriseKeyUp(keyCode, event) || super.onKeyUp(keyCode, event);
         switch (keyCode) {
             case KeyEvent.KEYCODE_DPAD_CENTER:
             case KeyEvent.KEYCODE_ENTER:
@@ -431,7 +647,8 @@ final class MoodShelfView extends View {
                 if (event.isCanceled() || held || items.isEmpty()) return true;
                 playSoundEffect(SoundEffectConstants.CLICK);
                 if (onButton) {
-                    listener.onShelfSurprise();
+                    if (deckReel) listener.onShelfSurprise();
+                    else spin();
                 } else {
                     MoodDeck.Title t = centreTitle();
                     if (t != null) listener.onShelfOpen(t);
@@ -560,6 +777,7 @@ final class MoodShelfView extends View {
         titlePaint.setTextSize(0.036f * h);
         smallPaint.setTextSize(0.019f * h);
         buttonText.setTextSize(0.026f * h);
+        barPaint.setStrokeWidth(0.007f * h);
         // Further from the screen than the default, so a turned poster's far edge is only a little shorter.
         camera.setLocation(0, 0, -24f * h / 1080f);
         shadePaint.setShader(new LinearGradient(0, 0, 0, h, new int[]{0xB3000000, 0x14000000, 0x14000000, 0x8C000000},
@@ -626,21 +844,31 @@ final class MoodShelfView extends View {
         int n = items.size();
         if (n == 0) return;
         List<float[]> shown = new ArrayList<>();
-        for (int i = 0; i < n; i++) {
-            float d = MoodShelf.offset(i, position, n);
-            if (Math.abs(d) < MoodShelf.SIDE + 1f) shown.add(new float[]{i, d});
+        if (surprise == Surprise.SPIN) {
+            // Every place on screen, numbered on past the row's ends: any row goes round while it spins.
+            float repeats = Math.min(1f, Math.abs(position - spinEnd));
+            int first = (int) Math.ceil(position - MoodShelf.SIDE - 1f), last = (int) Math.floor(position + MoodShelf.SIDE + 1f);
+            for (int place = first; place <= last; place++) {
+                shown.add(new float[]{MoodShelf.wrap(place, n), place - position,
+                        MoodShelf.staysAfterSpin(place, spinEnd, spinTarget, n) ? 1f : repeats});
+            }
+        } else {
+            for (int i = 0; i < n; i++) {
+                float d = MoodShelf.offset(i, position, n);
+                if (Math.abs(d) < MoodShelf.SIDE + 1f) shown.add(new float[]{i, d, 1f});
+            }
         }
         Collections.sort(shown, (a, b) -> Float.compare(Math.abs(b[1]), Math.abs(a[1])));
-        for (float[] s : shown) drawPoster(canvas, (int) s[0], s[1], w, h);
+        for (float[] s : shown) drawPoster(canvas, (int) s[0], s[1], s[2], w, h);
     }
 
-    private void drawPoster(Canvas canvas, int item, float d, int w, int h) {
+    private void drawPoster(Canvas canvas, int item, float d, float opacity, int w, int h) {
         float a = Math.abs(d);
         float near1 = Math.min(1f, a);
         float scale = MoodShelf.scale(a);
         float x = w / 2f + Math.signum(d) * MoodShelf.place(a) * h;
         // Fading out past the last poster each side, at the screen's edges.
-        float fade = Math.max(0f, Math.min(1f, MoodShelf.SIDE + 1f - a));
+        float fade = opacity * Math.max(0f, Math.min(1f, MoodShelf.SIDE + 1f - a));
         int alpha = Math.round(255 * fade);
         if (alpha <= 0) return;
         // Turned so its outer edge is further away: the row curves back from the centre.
@@ -681,7 +909,7 @@ final class MoodShelfView extends View {
             canvas.drawRoundRect(rect, rr, rr, dimPaint);
         }
         // The play icon on the centre poster (fading as it moves away).
-        float icon = Math.max(0f, 1f - a * 2f) * (1f - buttonFocus * 0.6f);
+        float icon = Math.max(0f, 1f - a * 2f) * (1f - buttonFocus * 0.6f) * (1f - surpriseShow);
         if (icon > 0f) {
             playPaint.setAlpha(Math.round(PLAY_ALPHA * icon));
             canvas.drawPath(triangle, playPaint);
@@ -702,37 +930,64 @@ final class MoodShelfView extends View {
         canvas.drawArc(rect, -90f, 360f * holdProgress, false, ringPaint);
     }
 
-    /** Under the row: the centre title, its year and app, "Surprise me", and what the keys do. */
+    /** Under the row: the centre title, its year and app, "Surprise me", and what the keys do; or the countdown. */
     private void drawBelow(Canvas canvas, int w, int h) {
         MoodDeck.Title t = centreTitle();
-        float settle = moving ? Math.max(0f, 1f - 2f * Math.abs(position - centre)) : 1f;
+        float settle = surprise == Surprise.SPIN ? Math.max(0f, 1f - 2f * Math.abs(position - spinEnd))
+                : moving ? Math.max(0f, 1f - 2f * Math.abs(position - centre)) : 1f;
         if (t != null && settle > 0f) {
             int a = Math.round(255 * settle);
             String title = TextUtils.ellipsize(t.title, titlePaint, w * 0.7f, TextUtils.TruncateAt.END).toString();
             titlePaint.setAlpha(a);
             canvas.drawText(title, (w - titlePaint.measureText(title)) / 2f, 0.755f * h, titlePaint);
-            String meta = t.year.isEmpty() ? t.appName.toUpperCase(Locale.ROOT)
+            String meta = surprise != Surprise.NONE ? openingLine(t)
+                    : t.year.isEmpty() ? t.appName.toUpperCase(Locale.ROOT)
                     : t.appName.isEmpty() ? t.year : t.year + "  ·  " + t.appName.toUpperCase(Locale.ROOT);
             smallPaint.setAlpha(Math.round(a * 0.7f));
             canvas.drawText(meta, (w - smallPaint.measureText(meta)) / 2f, 0.795f * h, smallPaint);
+            if (surprise != Surprise.NONE) drawCountdownBar(canvas, a, w, h);
         }
         // "Surprise me": an outline at rest, white when Down moved the focus to it.
         String label = getResources().getString(R.string.shelf_surprise);
         float tw = buttonText.measureText(label), bh = 0.070f * h, bw = tw + 0.10f * h, by = 0.880f * h;
-        rect.set((w - bw) / 2f, by - bh / 2f, (w + bw) / 2f, by + bh / 2f);
-        buttonPaint.setStyle(Paint.Style.FILL);
-        buttonPaint.setColor(Color.WHITE);
-        buttonPaint.setAlpha(Math.round(0x24 + (0xFF - 0x24) * buttonFocus));
-        canvas.drawRoundRect(rect, bh / 2f, bh / 2f, buttonPaint);
-        buttonPaint.setStyle(Paint.Style.STROKE);
-        buttonPaint.setStrokeWidth(Math.max(1f, 0.0014f * h));
-        buttonPaint.setAlpha(0x4D);
-        canvas.drawRoundRect(rect, bh / 2f, bh / 2f, buttonPaint);
-        buttonText.setColor((int) argb.evaluate(buttonFocus, 0xE6FFFFFF, 0xFF0C0C0E));
-        canvas.drawText(label, (w - tw) / 2f, by + buttonText.getTextSize() * 0.36f, buttonText);
-        String keys = getResources().getString(onButton ? R.string.shelf_keys_button : R.string.shelf_keys);
+        float there = 1f - surpriseShow;
+        if (there > 0f) {
+            rect.set((w - bw) / 2f, by - bh / 2f, (w + bw) / 2f, by + bh / 2f);
+            buttonPaint.setStyle(Paint.Style.FILL);
+            buttonPaint.setColor(Color.WHITE);
+            buttonPaint.setAlpha(Math.round((0x24 + (0xFF - 0x24) * buttonFocus) * there));
+            canvas.drawRoundRect(rect, bh / 2f, bh / 2f, buttonPaint);
+            buttonPaint.setStyle(Paint.Style.STROKE);
+            buttonPaint.setStrokeWidth(Math.max(1f, 0.0014f * h));
+            buttonPaint.setAlpha(Math.round(0x4D * there));
+            canvas.drawRoundRect(rect, bh / 2f, bh / 2f, buttonPaint);
+            int ink = (int) argb.evaluate(buttonFocus, 0xE6FFFFFF, 0xFF0C0C0E);
+            buttonText.setColor(withAlpha(ink, Math.round(Color.alpha(ink) * there)));
+            canvas.drawText(label, (w - tw) / 2f, by + buttonText.getTextSize() * 0.36f, buttonText);
+        }
+        String keys = getResources().getString(surprise == Surprise.COUNTDOWN ? R.string.mood_keys_countdown
+                : surprise == Surprise.SPIN ? R.string.mood_keys_spinning
+                : onButton ? R.string.shelf_keys_button : R.string.shelf_keys);
         smallPaint.setAlpha(0x80);
         canvas.drawText(keys, (w - smallPaint.measureText(keys)) / 2f, 0.962f * h, smallPaint);
+    }
+
+    /** "Opening in 3…" and the title's app (3 while it spins, so nothing jumps when it stops). */
+    private String openingLine(MoodDeck.Title t) {
+        long elapsed = surprise == Surprise.COUNTDOWN ? SystemClock.uptimeMillis() - countdownStart : 0;
+        String opening = getResources().getString(R.string.mood_opening, MoodDeck.secondsLeft(elapsed));
+        return t.appName.isEmpty() ? opening : opening + "  ·  " + t.appName.toUpperCase(Locale.ROOT);
+    }
+
+    /** The countdown's bar in the mood's colour, under the title. */
+    private void drawCountdownBar(Canvas canvas, int alpha, int w, int h) {
+        float bw = 0.34f * h, y = 0.832f * h, x = (w - bw) / 2f;
+        barPaint.setColor(Color.WHITE);
+        barPaint.setAlpha(Math.round(0x26 * alpha / 255f));
+        canvas.drawLine(x, y, x + bw, y, barPaint);
+        barPaint.setColor(mood.color);
+        barPaint.setAlpha(alpha);
+        canvas.drawLine(x, y, x + Math.max(0.001f, bw * countdown), y, barPaint);
     }
 
     /** "I've watched it" over "Cancel", in a small dark panel on the centre poster; the chosen line is white. */

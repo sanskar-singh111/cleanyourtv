@@ -2794,7 +2794,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (cfg.moodPosters && moodShelfView == null) {
             MoodShelfView shelf = new MoodShelfView(this, cfg.moodDeckTitles, cfg.moodPostersHeading,
                     UiFont.get(this, R.string.font_light), UiFont.get(this, R.string.font_medium),
-                    cfg.moodWatched ? cfg.watchlistRemoveHoldMs : 0, new MoodShelfView.Listener() {
+                    cfg.moodWatched ? cfg.watchlistRemoveHoldMs : 0, cfg.moodSurpriseReel, new MoodShelfView.Listener() {
                 @Override public void onShelfBack() { exitShelf(true); }
                 @Override public void onShelfOpen(MoodDeck.Title t) { openTitle(t.packageName, t.uri, t.component, t.flags, t.extras); }
                 @Override public void onShelfSurprise() {
