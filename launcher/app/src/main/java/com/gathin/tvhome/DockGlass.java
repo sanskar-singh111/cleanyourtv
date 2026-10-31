@@ -9,6 +9,7 @@ import android.graphics.Canvas;
 import android.graphics.ColorSpace;
 import android.graphics.LinearGradient;
 import android.graphics.Matrix;
+import android.graphics.Outline;
 import android.graphics.Paint;
 import android.graphics.PorterDuff;
 import android.graphics.PorterDuffXfermode;
@@ -19,6 +20,8 @@ import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.ViewOutlineProvider;
+import android.view.animation.LinearInterpolator;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 
@@ -30,7 +33,8 @@ import java.util.concurrent.Executors;
  * glass_intensity: the rounded panel behind the icon_dock. Nothing blurs on the TV: glass_strip is the wallpaper's bottom
  * as a computer blurred it, as wide as the screen and resting on its bottom edge. It is laid in the panel with a soft tint,
  * a thin bright edge and a highlight along the top, once, off the main thread, into one picture that a frame only has
- * to draw. TV Studio's preview (Glass.swift) uses the same numbers.
+ * to draw. glass_rim, made on a computer too, bends the wallpaper at the rounded edges; glass_shine adds a gloss over the top
+ * half and brightens the edge. TV Studio's preview (Glass.swift, Look.swift) uses the same numbers.
  */
 final class DockGlass {
     /** How far the panel reaches past the icons, in dp, and how much the Keep watching row rises to keep clear of it. */
@@ -41,21 +45,33 @@ final class DockGlass {
     private static final float CORNER = 1.4f;
     /** The edge's strength part-way down and at the bottom, as shares of its top. */
     private static final float EDGE_MIDDLE = 0.34f, EDGE_BOTTOM = 0.24f;
+    /** The gloss fades to this share of its strength at GLOSS_BODY of the panel's height, and is gone at GLOSS_END. */
+    private static final float GLOSS_MIDDLE = 0.36f, GLOSS_BODY = 0.34f, GLOSS_END = 0.52f;
+    /** glass_sweep: from one start to the next, how long the light takes to cross, and how wide and slanted it is. */
+    private static final int SWEEP_EVERY_MS = 8000, SWEEP_MS = 1800;
+    private static final float SWEEP_WIDE = 2.4f, SWEEP_SLANT = 0.3f;
     private static final String TAG = "TvHome.DockGlass";
 
     private final ViewGroup scene;
     private final ImageView view;
-    private final File strip;
-    private final int intensity, transparency;
+    private final File strip, rim;
+    private final int intensity, transparency, shine;
     private final float density;
     private final int screenW, screenH;
     private final ExecutorService baker = Executors.newSingleThreadExecutor();
     private final Rect placed = new Rect();
+    /** glass_sweep: the light in a box clipped to the panel; null without the switch. */
+    private final FrameLayout lightBox;
+    private final ImageView light;
+    private boolean sweeping;
+    private final Runnable sweepNext = this::crossOnce;
 
     /** Puts the empty panel under the dock in `frame`; `scene` is the full-screen view the strip lines up with. */
-    DockGlass(Context context, ViewGroup frame, ViewGroup scene, File strip, int intensity, int transparency) {
+    DockGlass(Context context, ViewGroup frame, ViewGroup scene, File strip, File rim, int intensity, int transparency, int shine, boolean sweep) {
         this.scene = scene;
         this.strip = strip;
+        this.rim = rim;
+        this.shine = shine;
         this.intensity = intensity;
         this.transparency = transparency;
         DisplayMetrics metrics = context.getResources().getDisplayMetrics();
@@ -67,6 +83,16 @@ final class DockGlass {
         view.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
         view.setAlpha(0f);
         frame.addView(view, 0, new FrameLayout.LayoutParams(0, 0));
+        lightBox = sweep ? new FrameLayout(context) : null;
+        light = sweep ? new ImageView(context) : null;
+        if (sweep) {
+            lightBox.setFocusable(false);
+            lightBox.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
+            lightBox.setClipToOutline(true);
+            light.setVisibility(View.GONE);
+            lightBox.addView(light, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.MATCH_PARENT));
+            frame.addView(lightBox, new FrameLayout.LayoutParams(0, 0));
+        }
     }
 
     /** Where the row's first icon starts in a space `width` wide, for icons `icons` wide and a panel `side` past them. */
@@ -88,8 +114,18 @@ final class DockGlass {
     }
 
     /** The edge's alpha along the top of the panel; it falls to EDGE_BOTTOM of this at the bottom. */
-    static int edgeAlpha(int intensity) {
-        return Math.round(255 * (0.18f + 0.30f * intensity / 100f));
+    static int edgeAlpha(int intensity, int shine) {
+        return Math.round(255 * (0.18f + 0.30f * intensity / 100f + 0.32f * shine / 100f));
+    }
+
+    /** The gloss's alpha at the very top of the panel. */
+    static int glossAlpha(int shine) {
+        return Math.round(255 * 0.30f * shine / 100f);
+    }
+
+    /** The sweep's alpha at its middle: it has its own switch, so it still shows a little with no shine. */
+    static int sweepAlpha(int shine) {
+        return Math.round(255 * (0.10f + 0.24f * shine / 100f));
     }
 
     /** The highlight's alpha at the very top. */
@@ -117,6 +153,7 @@ final class DockGlass {
         float radius = iconRadius + edge * CORNER;
         view.post(() -> {
             view.setLayoutParams(lp);
+            if (lightBox != null) placeLight(wanted, margin, radius);
             view.post(() -> {
                 // Where the panel stands on the wallpaper, which is the strip's frame.
                 Rect onScene = new Rect(0, 0, lp.width, lp.height);
@@ -129,6 +166,63 @@ final class DockGlass {
         });
     }
 
+    private void placeLight(Rect picture, int margin, float radius) {
+        FrameLayout.LayoutParams box = (FrameLayout.LayoutParams) lightBox.getLayoutParams();
+        box.width = picture.width() - 2 * margin;
+        box.height = picture.height() - 2 * margin;
+        box.leftMargin = picture.left + margin;
+        box.topMargin = picture.top + margin;
+        lightBox.setLayoutParams(box);
+        lightBox.setOutlineProvider(new ViewOutlineProvider() {
+            @Override
+            public void getOutline(View v, Outline outline) {
+                outline.setRoundRect(0, 0, v.getWidth(), v.getHeight(), radius);
+            }
+        });
+        int tall = box.height, wide = Math.round(tall * SWEEP_WIDE);
+        baker.execute(() -> {
+            Bitmap band = band(wide, tall);
+            light.post(() -> light.setImageBitmap(band));
+        });
+    }
+
+    /** The light: a soft slanted band, drawn once. */
+    private Bitmap band(int wide, int tall) {
+        Bitmap out = Bitmap.createBitmap(wide, tall, Bitmap.Config.ARGB_8888);
+        Canvas canvas = new Canvas(out);
+        int middle = sweepAlpha(shine) << 24 | 0xFFFFFF;
+        Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        // The gradient's own direction slants the band, and it fades out before the picture's sides.
+        paint.setShader(new LinearGradient(0, 0, wide, wide * SWEEP_SLANT, new int[]{0x00FFFFFF, middle, 0x00FFFFFF},
+                new float[]{0.27f, 0.5f, 0.73f}, Shader.TileMode.CLAMP));
+        canvas.drawRect(0, 0, wide, tall, paint);
+        return SceneLayers.onGpu(out);
+    }
+
+    /** glass_sweep on or off, for whether the dock is what's on screen. Nothing runs without the switch. */
+    void sweep(boolean on) {
+        if (light == null || on == sweeping) return;
+        sweeping = on;
+        view.removeCallbacks(sweepNext);
+        light.animate().cancel();
+        light.setVisibility(View.GONE);
+        if (on) view.postDelayed(sweepNext, SWEEP_EVERY_MS - SWEEP_MS);
+    }
+
+    private void crossOnce() {
+        if (!sweeping || light.getDrawable() == null) {
+            if (sweeping) view.postDelayed(sweepNext, SWEEP_EVERY_MS);
+            return;
+        }
+        float wide = light.getDrawable().getIntrinsicWidth();
+        light.setTranslationX(-wide);
+        light.setVisibility(View.VISIBLE);
+        light.animate().translationX(lightBox.getWidth()).setDuration(SWEEP_MS).setInterpolator(new LinearInterpolator()).withEndAction(() -> {
+            light.setVisibility(View.GONE);
+            if (sweeping) view.postDelayed(sweepNext, SWEEP_EVERY_MS - SWEEP_MS);
+        }).start();
+    }
+
     private void show(Bitmap baked) {
         if (baked == null) return;
         view.setImageBitmap(baked);
@@ -137,7 +231,7 @@ final class DockGlass {
 
     /** The picture, w x h with the panel `margin` inside it; (left, top) is the picture's place on the wallpaper. */
     private Bitmap bake(int w, int h, int margin, int left, int top, float radius) {
-        Bitmap in = null;
+        Bitmap in = null, bent = null;
         try {
             BitmapFactory.Options options = new BitmapFactory.Options();
             options.inPreferredConfig = Bitmap.Config.ARGB_8888;
@@ -168,13 +262,22 @@ final class DockGlass {
             paint.setShader(shader);
             canvas.drawRoundRect(rect, radius, radius, paint);
             paint.setShader(null);
+            bent = rim == null ? null : BitmapFactory.decodeFile(rim.getPath(), options);
+            if (bent != null) canvas.drawBitmap(bent, null, rect, paint);
             paint.setColor(tintAlpha(transparency) << 24 | TINT);
             canvas.drawRoundRect(rect, radius, radius, paint);
             paint.setColor(0xFFFFFFFF);
             paint.setShader(new LinearGradient(0, rect.top, 0, rect.top + rect.height() * 0.42f, highlightAlpha(intensity) << 24 | 0xFFFFFF, 0x00FFFFFF, Shader.TileMode.CLAMP));
             canvas.drawRoundRect(rect, radius, radius, paint);
+            if (shine > 0) {
+                int gloss = glossAlpha(shine);
+                paint.setShader(new LinearGradient(0, rect.top, 0, rect.top + rect.height() * GLOSS_END,
+                        new int[]{gloss << 24 | 0xFFFFFF, Math.round(gloss * GLOSS_MIDDLE) << 24 | 0xFFFFFF, 0x00FFFFFF},
+                        new float[]{0f, GLOSS_BODY / GLOSS_END, 1f}, Shader.TileMode.CLAMP));
+                canvas.drawRoundRect(rect, radius, radius, paint);
+            }
             // One real pixel, on the pixel grid: bright along the top, fainter along the bottom.
-            int edge = edgeAlpha(intensity);
+            int edge = Math.min(255, edgeAlpha(intensity, shine));
             paint.setStyle(Paint.Style.STROKE);
             paint.setStrokeWidth(1f);
             paint.setShader(new LinearGradient(0, rect.top, 0, rect.bottom,
@@ -188,10 +291,12 @@ final class DockGlass {
             return null;
         } finally {
             if (in != null) in.recycle();
+            if (bent != null) bent.recycle();
         }
     }
 
     void close() {
+        sweep(false);
         baker.shutdownNow();
     }
 }

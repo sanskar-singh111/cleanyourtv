@@ -107,7 +107,7 @@ final class SceneLayers {
         return layer.getHeight() * (float) width / layer.getWidth();
     }
 
-    private static Bitmap decode(File file) {
+    static Bitmap decode(File file) {
         if (file == null) return null;
         try {
             BitmapFactory.Options bounds = new BitmapFactory.Options();

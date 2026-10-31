@@ -302,6 +302,14 @@ final class Config {
     final File glassStrip;
     /** dock_transparency: how clear the glass is, in percent; the tint's opacity is the rest. */
     final int dockTransparency;
+    /** big_clock_glass: the picture inside the big clock's digits, the sky made into glass on a computer. */
+    final File bigClockGlass;
+    /** glass_rim: the wallpaper bent at the panel's rounded edges, from a computer. */
+    final File glassRim;
+    /** glass_shine: how strong the glass's highlights and edges are, 0 to 100; 0 adds nothing. */
+    final int glassShine;
+    /** glass_sweep: a slow light across the dock every few seconds. */
+    final boolean glassSweep;
     /** top_buttons: false hides the buttons at the top right. */
     final boolean topButtons;
 
@@ -329,7 +337,8 @@ final class Config {
                    boolean moodPosters, boolean moodWatched, String moodPostersHeading, boolean moodSurpriseReel,
                    Map<String, File> scene, boolean bigClock, int bigClockSize, boolean keepWatching, String keepWatchingHeading,
                    boolean iconDock, int iconDockSize, Map<String, File> dockIcons, int bigClockTop, boolean dockCentered,
-                   int glassIntensity, File glassStrip, boolean topButtons, int bigClockOpacity, int dockTransparency) {
+                   int glassIntensity, File glassStrip, boolean topButtons, int bigClockOpacity, int dockTransparency,
+                   File bigClockGlass, File glassRim, int glassShine, boolean glassSweep) {
         this.scene = Collections.unmodifiableMap(scene);
         this.bigClock = bigClock;
         this.bigClockSize = bigClockSize;
@@ -341,6 +350,10 @@ final class Config {
         this.bigClockTop = bigClockTop;
         this.bigClockOpacity = bigClockOpacity;
         this.dockTransparency = dockTransparency;
+        this.bigClockGlass = bigClockGlass;
+        this.glassRim = glassRim;
+        this.glassShine = glassShine;
+        this.glassSweep = glassSweep;
         this.dockCentered = dockCentered;
         this.glassIntensity = glassStrip == null ? 0 : glassIntensity;
         this.glassStrip = glassStrip;
@@ -604,6 +617,10 @@ final class Config {
         String dockAlign = res.getString(R.string.dock_align);
         int glassIntensity = res.getInteger(R.integer.glass_intensity);
         String glassStrip = res.getString(R.string.glass_strip);
+        String bigClockGlass = res.getString(R.string.big_clock_glass);
+        String glassRim = res.getString(R.string.glass_rim);
+        int glassShine = res.getInteger(R.integer.glass_shine);
+        boolean glassSweep = res.getBoolean(R.bool.glass_sweep);
         boolean topButtons = res.getBoolean(R.bool.top_buttons);
         boolean applied = false;
 
@@ -736,6 +753,10 @@ final class Config {
             dockAlign = string(json, "dock_align", dockAlign);
             glassIntensity = integer(json, "glass_intensity", glassIntensity, 0, 100);
             glassStrip = string(json, "glass_strip", glassStrip);
+            bigClockGlass = string(json, "big_clock_glass", bigClockGlass);
+            glassRim = string(json, "glass_rim", glassRim);
+            glassShine = integer(json, "glass_shine", glassShine, 0, 100);
+            glassSweep = json.optBoolean("glass_sweep", glassSweep);
             topButtons = bool(json, "top_buttons", topButtons);
         }
         // A theme push or reset invalidates choices made on the TV. On first use, remember the
@@ -814,7 +835,8 @@ final class Config {
                 themeFiles(dir, packageMap(scene)), bigClock, clamp(bigClockSize, 15, 50), keepWatching, keepWatchingHeading,
                 iconDock, clamp(iconDockSize, 40, 100), themeFiles(dir, packageMap(dockIcons)), clamp(bigClockTop, 5, 40),
                 "center".equals(dockAlign), clamp(glassIntensity, 0, 100), iconDock ? themeFile(dir, glassStrip) : null, topButtons,
-                clamp(bigClockOpacity, 30, 100), clamp(dockTransparency, 0, 100));
+                clamp(bigClockOpacity, 30, 100), clamp(dockTransparency, 0, 100), bigClock ? themeFile(dir, bigClockGlass) : null,
+                iconDock ? themeFile(dir, glassRim) : null, clamp(glassShine, 0, 100), glassSweep);
     }
 
     /** The deck as read from a theme: its titles, and its moods pointing at them by position. */

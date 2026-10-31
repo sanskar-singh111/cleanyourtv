@@ -124,6 +124,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private long idleFadeMs;
     /** Home has faded: the next key only brings it back. The key whose press woke it, so its release is eaten too. */
     private boolean faded;
+    /** Between onResume and onPause. */
+    private boolean resumedHome;
     private int wakeKey = KeyEvent.KEYCODE_UNKNOWN;
     /** screensaver: what the faded Home shows (Screensaver), its dim, fade, slides and their pictures. */
     private String saverMode = Screensaver.WALLPAPER;
@@ -151,6 +153,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private final Runnable fadeHome = () -> {
         if (this.inWatchlist) exitWatchlist(false);   // the screensaver fades Home itself, not the lineup over it
         faded = true;
+        updateSweep();
         for (View v : fadingViews()) v.animate().alpha(0f).setDuration(saverFadeMs).start();
         showSaver();
     };
@@ -499,7 +502,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         wallpaperPlayer = new WallpaperPlayer(this, root, cfg);
         sky = findViewById(R.id.sky);
         sky.setIntensity(cfg.skyIntensity);
-        if (cfg.bigClock) bigClock = new BigClock(this, cfg.bigClockSize, cfg.bigClockTop, cfg.bigClockOpacity, UiFont.get(this, R.string.font_inter_regular), UiFont.get(this, R.string.font_clock));
+        if (cfg.bigClock) bigClock = new BigClock(this, cfg.bigClockSize, cfg.bigClockTop, cfg.bigClockOpacity, UiFont.get(this, R.string.font_inter_regular), UiFont.get(this, R.string.font_clock), cfg.bigClockGlass, cfg.glassShine);
         if (!cfg.scene.isEmpty()) {
             scene = new SceneLayers(this, root, root.indexOfChild(sky), bigClock == null ? null : bigClock.view, cfg.scene);
         } else if (bigClock != null) {
@@ -686,7 +689,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             int start = DockGlass.rowStart(width, pitch * COLUMNS - (pitch - icon), side, cfg.dockCentered);
             grid.setPadding(start, grid.getPaddingTop(), Math.max(0, width - start - pitch * COLUMNS), grid.getPaddingBottom());
             if (cfg.glassIntensity > 0) {
-                dockGlass = new DockGlass(this, (ViewGroup) grid.getParent(), root, cfg.glassStrip, cfg.glassIntensity, cfg.dockTransparency);
+                dockGlass = new DockGlass(this, (ViewGroup) grid.getParent(), root, cfg.glassStrip, cfg.glassRim, cfg.glassIntensity, cfg.dockTransparency, cfg.glassShine, cfg.glassSweep);
             }
             // The first icon grows and glows past the row's left edge.
             ((ViewGroup) grid.getParent()).setClipChildren(false);
@@ -1063,6 +1066,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             return;
         }
         restartIdleClock();
+        resumedHome = true;
+        updateSweep();
         promptsPaused = false;
         if (keepWatching != null) refreshKeepWatching();
         if (grid.getAdapter() == null) grid.setAdapter(adapter);   // dropped by onTrimMemory
@@ -1277,8 +1282,14 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         return views.toArray(new View[0]);
     }
 
+    /** glass_sweep runs only while the dock is what's on screen. */
+    private void updateSweep() {
+        if (dockGlass != null) dockGlass.sweep(resumedHome && !faded && !inWatchlist && !moreAppsOpen());
+    }
+
     private void unfade(int ms) {
         faded = false;
+        updateSweep();
         for (View v : fadingViews()) v.animate().alpha(1f).setDuration(ms).start();
         hideSaver(ms);
     }
@@ -1438,6 +1449,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     @Override
     protected void onPause() {
         super.onPause();
+        resumedHome = false;
+        updateSweep();
         root.removeCallbacks(showIdleClock);
         root.removeCallbacks(fadeHome);
         if (faded) unfade(0);
@@ -1952,6 +1965,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         moreGrid.setVisibility(View.VISIBLE);
         moreGrid.animate().alpha(1f).setDuration(180).start();
         if (bigClock != null) bigClock.view.animate().alpha(0f).setDuration(180).start();
+        updateSweep();
         fadeScrollShade(true);
         moreFocused = 0;
         focusMoreTile();
@@ -1980,6 +1994,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         moreGrid.setAdapter(null);   // lets go of the grid's tiles; Home's adapter keeps the artwork
         moreAdapter.clear();
         if (bigClock != null) bigClock.view.animate().alpha(1f).setDuration(180).start();
+        updateSweep();
         fadeScrollShade(false);
         showHome(true);
         if (refocus && adapter.isLibraryAt(adapter.appCount())) focusLibrary();
@@ -3034,6 +3049,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private void enterWatchlist(int dockPosition) {
         if (inWatchlist) return;
         inWatchlist = true;
+        updateSweep();
         lastFocused = dockPosition;
         hideGlass();
         // Always the first character of page 1 (Up from the deck keeps its own place: exitDeck doesn't come here).
@@ -3046,6 +3062,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private void exitWatchlist(boolean animate) {
         if (!inWatchlist) return;
         inWatchlist = false;
+        updateSweep();
         exitShelf(false);
         if (inDeck) {
             // Home from the deck: all the way up to the dock, past the lineup.

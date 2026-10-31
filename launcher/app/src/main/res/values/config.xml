@@ -492,8 +492,12 @@
          The date and weather line stays just above them. -->
     <integer name="big_clock_top">16</integer>
     <!-- How solid the big clock's digits are in percent, 30 to 100 (80 by default); under 100 the sky shows through them:
-         "big_clock_opacity". -->
+         "big_clock_opacity". With big_clock_glass it is how milky the glass is, from clear to nearly white. -->
     <integer name="big_clock_opacity">80</integer>
+    <!-- The big clock's digits as thick glass (empty, default, is plain white). A theme sets "big_clock_glass" to a picture
+         in its folder, the sky as wide as the screen, shifted, blurred and brightened on a computer: the launcher only clips
+         it to the digit shapes, when the minute changes. big_clock_opacity still sets how solid they are. -->
+    <string name="big_clock_glass" translatable="false" />
     <!-- Keep watching (false, default). A theme sets "keep_watching": true: a row above the dock of what Android TV's
          Watch Next lists (docs/watch-next.md): the app's name, the title and the episode. OK opens the item; the row is
          hidden when there is nothing in it. Needs READ_TV_LISTINGS (build-and-install grants it).
@@ -517,6 +521,15 @@
          50 up more of the sharp wallpaper shows through the blur: "dock_transparency". -->
     <integer name="dock_transparency">88</integer>
     <string name="glass_strip" translatable="false" />
+    <!-- The wallpaper bent at the glass panel's rounded edges (empty, default, is none). A theme sets "glass_rim" to a
+         picture in its folder, the panel's size, clear in the middle, made on a computer: "glass_rim". -->
+    <string name="glass_rim" translatable="false" />
+    <!-- How strong the glass's highlights and edges are, 0 (default, adds nothing) to 100: a gloss over the top half of the
+         panel, a soft gloss on each icon, a brighter edge, and big_clock_glass's edges: "glass_shine". -->
+    <integer name="glass_shine">0</integer>
+    <!-- A slow light across the glass panel every 8 seconds (false, default). It pauses in apps, in More apps, on the
+         lineup and during the idle fade: "glass_sweep". -->
+    <bool name="glass_sweep">false</bool>
     <!-- The buttons at the top right (true, default). A theme with "top_buttons": false has none; Up from the row
          under them then does nothing. -->
     <bool name="top_buttons">true</bool>

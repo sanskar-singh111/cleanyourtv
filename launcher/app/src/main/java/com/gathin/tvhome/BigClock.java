@@ -12,6 +12,8 @@ import android.widget.LinearLayout;
 import android.widget.TextClock;
 import android.widget.TextView;
 
+import java.io.File;
+
 /**
  * big_clock: one line (the date, then the weather) and under it the time, large and thin, in the screen's centre. It is
  * one view for SceneLayers to put between its layers, so the front mountain overlaps the digits.
@@ -31,7 +33,7 @@ final class BigClock {
     private final WeatherIcon icon = new WeatherIcon();
     private final TextView weatherText;
 
-    BigClock(Context context, int sizePercent, int topPercent, int opacityPercent, Typeface regular, Typeface digitsFont) {
+    BigClock(Context context, int sizePercent, int topPercent, int opacityPercent, Typeface regular, Typeface digitsFont, File glass, int shine) {
         float density = context.getResources().getDisplayMetrics().density;
         int screenH = context.getResources().getDisplayMetrics().heightPixels;
         view = new FrameLayout(context);
@@ -39,7 +41,8 @@ final class BigClock {
         view.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
         view.setLayoutParams(new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
-        TextClock digits = new TextClock(context);
+        GlassDigits glassDigits = glass == null ? null : new GlassDigits(context, shine, DIGITS_SHADOW, DIGITS_SHADOW_DP);
+        TextClock digits = glassDigits != null ? glassDigits : new TextClock(context);
         digits.setFormat12Hour("h:mm");
         digits.setFormat24Hour("HH:mm");
         digits.setTypeface(digitsFont);
@@ -58,6 +61,7 @@ final class BigClock {
         float digitsTop = topPercent / 100f;
         dlp.topMargin = Math.round(screenH * digitsTop + digits.getPaint().getFontMetrics().ascent + textSize * DIGIT_SHARE);
         view.addView(digits, dlp);
+        if (glassDigits != null) glassDigits.load(glass, opacityPercent);
 
         LinearLayout line = new LinearLayout(context);
         line.setOrientation(LinearLayout.HORIZONTAL);

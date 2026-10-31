@@ -243,6 +243,9 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     private final Map<String, Integer> appColors;
     /** icon_dock: the dock is square icons of this many px, with Settings and More apps as its last two tiles. */
     private final boolean iconDock;
+    private final int glassShine;
+    /** glass_shine: one picture over every icon tile. */
+    private Bitmap iconGloss;
     private final int iconPx;
     private final Map<String, java.io.File> dockIcons;
     /** icon_dock: the soft light behind a focused tile, shared by all of them. */
@@ -282,6 +285,7 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         this.dockLogoSize = cfg.dockLogoSize;
         this.appColors = cfg.appColors;
         this.iconDock = cfg.iconDock;
+        this.glassShine = cfg.glassShine;
         this.iconPx = Math.round(cfg.iconDockSize * ctx.getResources().getDisplayMetrics().density);
         this.dockIcons = cfg.dockIcons;
         // Tiles keep their identity across reload(), so a focused tile stays on its app instead of
@@ -496,6 +500,10 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         Holder holder = new Holder(v, listener, animations, advancedEffects, reducedMotion, restNameAlpha, focusOvershoot, plainFocus,
                 icons ? ICON_GROW : growScale, growMs);
         if (icons) addGlow(holder, (ViewGroup) v, w);
+        if (icons && glassShine > 0) {
+            if (iconGloss == null) iconGloss = DockIcon.gloss(w, w * ICON_RADIUS, glassShine);
+            card.setForeground(new BitmapDrawable(ctx.getResources(), iconGloss));
+        }
         return holder;
     }
 

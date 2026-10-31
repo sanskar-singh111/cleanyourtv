@@ -10,11 +10,14 @@ import android.graphics.BitmapFactory;
 import android.graphics.BlurMaskFilter;
 import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.LinearGradient;
 import android.graphics.Paint;
+import android.graphics.Path;
 import android.graphics.PorterDuff;
 import android.graphics.PorterDuffXfermode;
 import android.graphics.Rect;
 import android.graphics.RectF;
+import android.graphics.Shader;
 import android.graphics.drawable.AdaptiveIconDrawable;
 import android.graphics.drawable.Drawable;
 import android.util.DisplayMetrics;
@@ -36,6 +39,8 @@ final class DockIcon {
     private static final int SOLID = 200;
     /** Android gives the largest icon it has up to this. */
     private static final int DENSITY = DisplayMetrics.DENSITY_XXXHIGH;
+    /** Where a tile's gloss ends, as a share of its height, and how much its lower edge curves. */
+    private static final float GLOSS_END = 0.56f, GLOSS_CURVE = 0.05f;
 
     private DockIcon() {}
 
@@ -177,6 +182,51 @@ final class DockIcon {
         canvas.drawBitmap(art, 0, (size - art.getHeight()) / 2f, null);
         art.recycle();
         return out;
+    }
+
+    /**
+     * glass_shine: a soft gloss over a tile, brightest at the top, gone by a little past its middle, along a slightly curved
+     * lower edge, then a faint shade at the bottom, which is what shows on a white tile, and a thin light along its top rim.
+     * Inside the tile's rounded corners. Drawn once and shared by every tile.
+     */
+    static Bitmap gloss(int tile, float radius, int shine) {
+        Bitmap out = Bitmap.createBitmap(tile, tile, Bitmap.Config.ARGB_8888);
+        Canvas canvas = new Canvas(out);
+        Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        canvas.clipPath(rounded(tile, radius));
+        paint.setShader(new LinearGradient(0, 0, 0, tile * GLOSS_END, glossAlpha(shine) << 24 | 0xFFFFFF, 0x00FFFFFF, Shader.TileMode.CLAMP));
+        Path curve = new Path();
+        curve.moveTo(0, 0);
+        curve.lineTo(tile, 0);
+        curve.lineTo(tile, tile * (GLOSS_END - GLOSS_CURVE));
+        curve.quadTo(tile / 2f, tile * (GLOSS_END + GLOSS_CURVE), 0, tile * (GLOSS_END - GLOSS_CURVE));
+        curve.close();
+        canvas.drawPath(curve, paint);
+        paint.setShader(new LinearGradient(0, tile * GLOSS_END, 0, tile, 0, tileShadeAlpha(shine) << 24, Shader.TileMode.CLAMP));
+        canvas.drawRect(0, tile * GLOSS_END, tile, tile, paint);
+        paint.setShader(new LinearGradient(0, 0, 0, tile * 0.3f, tileRimAlpha(shine) << 24 | 0xFFFFFF, 0x00FFFFFF, Shader.TileMode.CLAMP));
+        paint.setStyle(Paint.Style.STROKE);
+        paint.setStrokeWidth(2f);
+        canvas.drawRoundRect(new RectF(1, 1, tile - 1, tile - 1), radius - 1, radius - 1, paint);
+        return out;
+    }
+
+    static int glossAlpha(int shine) {
+        return Math.round(255 * 0.34f * shine / 100f);
+    }
+
+    static int tileShadeAlpha(int shine) {
+        return Math.round(255 * 0.16f * shine / 100f);
+    }
+
+    static int tileRimAlpha(int shine) {
+        return Math.round(255 * 0.60f * shine / 100f);
+    }
+
+    private static Path rounded(int tile, float radius) {
+        Path path = new Path();
+        path.addRoundRect(new RectF(0, 0, tile, tile), radius, radius, Path.Direction.CW);
+        return path;
     }
 
     /**
