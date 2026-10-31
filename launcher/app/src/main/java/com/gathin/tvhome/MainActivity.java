@@ -499,7 +499,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         wallpaperPlayer = new WallpaperPlayer(this, root, cfg);
         sky = findViewById(R.id.sky);
         sky.setIntensity(cfg.skyIntensity);
-        if (cfg.bigClock) bigClock = new BigClock(this, cfg.bigClockSize, cfg.bigClockTop, UiFont.get(this, R.string.font_inter_regular), UiFont.get(this, R.string.font_clock));
+        if (cfg.bigClock) bigClock = new BigClock(this, cfg.bigClockSize, cfg.bigClockTop, cfg.bigClockOpacity, UiFont.get(this, R.string.font_inter_regular), UiFont.get(this, R.string.font_clock));
         if (!cfg.scene.isEmpty()) {
             scene = new SceneLayers(this, root, root.indexOfChild(sky), bigClock == null ? null : bigClock.view, cfg.scene);
         } else if (bigClock != null) {
@@ -686,7 +686,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             int start = DockGlass.rowStart(width, pitch * COLUMNS - (pitch - icon), side, cfg.dockCentered);
             grid.setPadding(start, grid.getPaddingTop(), Math.max(0, width - start - pitch * COLUMNS), grid.getPaddingBottom());
             if (cfg.glassIntensity > 0) {
-                dockGlass = new DockGlass(this, (ViewGroup) grid.getParent(), root, cfg.glassStrip, cfg.glassIntensity);
+                dockGlass = new DockGlass(this, (ViewGroup) grid.getParent(), root, cfg.glassStrip, cfg.glassIntensity, cfg.dockTransparency);
             }
             // The first icon grows and glows past the row's left edge.
             ((ViewGroup) grid.getParent()).setClipChildren(false);

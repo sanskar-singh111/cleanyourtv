@@ -10,6 +10,8 @@ import android.graphics.ColorSpace;
 import android.graphics.LinearGradient;
 import android.graphics.Matrix;
 import android.graphics.Paint;
+import android.graphics.PorterDuff;
+import android.graphics.PorterDuffXfermode;
 import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.Shader;
@@ -38,23 +40,24 @@ final class DockGlass {
     /** The panel's corners, as a share of the room above the icons on top of the icons' own. */
     private static final float CORNER = 1.4f;
     /** The edge's strength part-way down and at the bottom, as shares of its top. */
-    private static final float EDGE_MIDDLE = 0.38f, EDGE_BOTTOM = 0.30f;
+    private static final float EDGE_MIDDLE = 0.34f, EDGE_BOTTOM = 0.24f;
     private static final String TAG = "TvHome.DockGlass";
 
     private final ViewGroup scene;
     private final ImageView view;
     private final File strip;
-    private final int intensity;
+    private final int intensity, transparency;
     private final float density;
     private final int screenW, screenH;
     private final ExecutorService baker = Executors.newSingleThreadExecutor();
     private final Rect placed = new Rect();
 
     /** Puts the empty panel under the dock in `frame`; `scene` is the full-screen view the strip lines up with. */
-    DockGlass(Context context, ViewGroup frame, ViewGroup scene, File strip, int intensity) {
+    DockGlass(Context context, ViewGroup frame, ViewGroup scene, File strip, int intensity, int transparency) {
         this.scene = scene;
         this.strip = strip;
         this.intensity = intensity;
+        this.transparency = transparency;
         DisplayMetrics metrics = context.getResources().getDisplayMetrics();
         density = metrics.density;
         screenW = metrics.widthPixels;
@@ -71,19 +74,27 @@ final class DockGlass {
         return centered ? Math.max(side, (width - icons) / 2) : side;
     }
 
-    /** The tint's alpha: light even at its strongest, so the wallpaper's colour stays clear. */
-    static int tintAlpha(int intensity) {
-        return Math.round(255 * (0.01f + 0.05f * intensity / 100f));
+    /** A cool grey: on a dark foreground white would read as milk, not as glass. */
+    private static final int TINT = 0xB4BCCC;
+
+    /** The blur's alpha: the clearer the glass, the more of the sharp wallpaper shows through it (a third at 100). */
+    static int blurAlpha(int transparency) {
+        return Math.round(255 * (1f - 0.35f * Math.max(0, transparency - 50) / 50f));
+    }
+
+    /** The tint's alpha: dock_transparency is how clear the glass is, so the tint is the rest. */
+    static int tintAlpha(int transparency) {
+        return Math.round(255 * (100 - transparency) / 100f);
     }
 
     /** The edge's alpha along the top of the panel; it falls to EDGE_BOTTOM of this at the bottom. */
     static int edgeAlpha(int intensity) {
-        return Math.round(255 * (0.35f + 0.50f * intensity / 100f));
+        return Math.round(255 * (0.18f + 0.30f * intensity / 100f));
     }
 
     /** The highlight's alpha at the very top. */
     static int highlightAlpha(int intensity) {
-        return Math.round(255 * (0.02f + 0.08f * intensity / 100f));
+        return Math.round(255 * (0.01f + 0.05f * intensity / 100f));
     }
 
     /** The shadow's alpha. */
@@ -143,17 +154,21 @@ final class DockGlass {
             under.offset(0, SHADOW_DROP_DP * density);
             canvas.drawRoundRect(under, radius, radius, paint);
             paint.setMaskFilter(null);
+            // The shadow stays outside: the panel is see-through, and it would darken what shows through.
+            paint.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.CLEAR));
+            canvas.drawRoundRect(rect, radius, radius, paint);
+            paint.setXfermode(null);
             float scale = (float) screenW / in.getWidth();
             BitmapShader shader = new BitmapShader(in, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
             Matrix matrix = new Matrix();
             matrix.setScale(scale, scale);
             matrix.postTranslate(-left, screenH - in.getHeight() * scale - top);
             shader.setLocalMatrix(matrix);
-            paint.setColor(0xFFFFFFFF);
+            paint.setColor(blurAlpha(transparency) << 24 | 0xFFFFFF);
             paint.setShader(shader);
             canvas.drawRoundRect(rect, radius, radius, paint);
             paint.setShader(null);
-            paint.setColor(tintAlpha(intensity) << 24 | 0xFFFFFF);
+            paint.setColor(tintAlpha(transparency) << 24 | TINT);
             canvas.drawRoundRect(rect, radius, radius, paint);
             paint.setColor(0xFFFFFFFF);
             paint.setShader(new LinearGradient(0, rect.top, 0, rect.top + rect.height() * 0.42f, highlightAlpha(intensity) << 24 | 0xFFFFFF, 0x00FFFFFF, Shader.TileMode.CLAMP));

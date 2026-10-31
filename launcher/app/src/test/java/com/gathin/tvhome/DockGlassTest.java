@@ -21,14 +21,21 @@ public class DockGlassTest {
     }
 
     @Test public void strongerGlassIsStrongerInEveryPart() {
-        assertTrue(DockGlass.tintAlpha(100) > DockGlass.tintAlpha(1));
         assertTrue(DockGlass.edgeAlpha(100) > DockGlass.edgeAlpha(1));
         assertTrue(DockGlass.highlightAlpha(100) > DockGlass.highlightAlpha(1));
         assertTrue(DockGlass.shadowAlpha(100) > DockGlass.shadowAlpha(1));
         assertTrue(DockGlass.edgeAlpha(100) <= 255);
     }
 
-    @Test public void theTintStaysLightSoTheGlassIsClear() {
-        assertTrue(DockGlass.tintAlpha(100) < 0.07f * 255);
+    @Test public void theTintIsWhatTheTransparencyLeaves() {
+        assertEquals(0, DockGlass.tintAlpha(100));
+        assertEquals(31, DockGlass.tintAlpha(88));
+        assertEquals(255, DockGlass.tintAlpha(0));
+    }
+
+    @Test public void clearerGlassLetsTheWallpaperThrough() {
+        assertEquals(255, DockGlass.blurAlpha(50));
+        assertEquals(166, DockGlass.blurAlpha(100));
+        assertTrue(DockGlass.blurAlpha(88) < DockGlass.blurAlpha(60));
     }
 }

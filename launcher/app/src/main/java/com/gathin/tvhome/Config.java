@@ -285,6 +285,8 @@ final class Config {
     final int bigClockSize;
     /** big_clock_top: where the digits start, in percent of the screen's height. */
     final int bigClockTop;
+    /** big_clock_opacity: how solid the digits are, in percent. */
+    final int bigClockOpacity;
     /** keep_watching: the row of Android TV's Watch Next above the dock, and the words above it. */
     final boolean keepWatching;
     final String keepWatchingHeading;
@@ -298,6 +300,8 @@ final class Config {
     /** glass_intensity (0 is off) and glass_strip, the blurred picture for the panel behind the icon_dock. */
     final int glassIntensity;
     final File glassStrip;
+    /** dock_transparency: how clear the glass is, in percent; the tint's opacity is the rest. */
+    final int dockTransparency;
     /** top_buttons: false hides the buttons at the top right. */
     final boolean topButtons;
 
@@ -325,7 +329,7 @@ final class Config {
                    boolean moodPosters, boolean moodWatched, String moodPostersHeading, boolean moodSurpriseReel,
                    Map<String, File> scene, boolean bigClock, int bigClockSize, boolean keepWatching, String keepWatchingHeading,
                    boolean iconDock, int iconDockSize, Map<String, File> dockIcons, int bigClockTop, boolean dockCentered,
-                   int glassIntensity, File glassStrip, boolean topButtons) {
+                   int glassIntensity, File glassStrip, boolean topButtons, int bigClockOpacity, int dockTransparency) {
         this.scene = Collections.unmodifiableMap(scene);
         this.bigClock = bigClock;
         this.bigClockSize = bigClockSize;
@@ -335,6 +339,8 @@ final class Config {
         this.iconDockSize = iconDockSize;
         this.dockIcons = Collections.unmodifiableMap(dockIcons);
         this.bigClockTop = bigClockTop;
+        this.bigClockOpacity = bigClockOpacity;
+        this.dockTransparency = dockTransparency;
         this.dockCentered = dockCentered;
         this.glassIntensity = glassStrip == null ? 0 : glassIntensity;
         this.glassStrip = glassStrip;
@@ -588,6 +594,8 @@ final class Config {
         boolean bigClock = res.getBoolean(R.bool.big_clock);
         int bigClockSize = res.getInteger(R.integer.big_clock_size);
         int bigClockTop = res.getInteger(R.integer.big_clock_top);
+        int bigClockOpacity = res.getInteger(R.integer.big_clock_opacity);
+        int dockTransparency = res.getInteger(R.integer.dock_transparency);
         boolean keepWatching = res.getBoolean(R.bool.keep_watching);
         String keepWatchingHeading = res.getString(R.string.keep_watching_heading);
         boolean iconDock = res.getBoolean(R.bool.icon_dock);
@@ -718,6 +726,8 @@ final class Config {
             bigClock = bool(json, "big_clock", bigClock);
             bigClockSize = integer(json, "big_clock_size", bigClockSize, 15, 50);
             bigClockTop = integer(json, "big_clock_top", bigClockTop, 5, 40);
+            bigClockOpacity = integer(json, "big_clock_opacity", bigClockOpacity, 30, 100);
+            dockTransparency = integer(json, "dock_transparency", dockTransparency, 0, 100);
             keepWatching = bool(json, "keep_watching", keepWatching);
             keepWatchingHeading = string(json, "keep_watching_heading", keepWatchingHeading);
             iconDock = bool(json, "icon_dock", iconDock);
@@ -803,7 +813,8 @@ final class Config {
                 moodPosters, moodWatched, moodPostersHeading, moodSurpriseReel,
                 themeFiles(dir, packageMap(scene)), bigClock, clamp(bigClockSize, 15, 50), keepWatching, keepWatchingHeading,
                 iconDock, clamp(iconDockSize, 40, 100), themeFiles(dir, packageMap(dockIcons)), clamp(bigClockTop, 5, 40),
-                "center".equals(dockAlign), clamp(glassIntensity, 0, 100), iconDock ? themeFile(dir, glassStrip) : null, topButtons);
+                "center".equals(dockAlign), clamp(glassIntensity, 0, 100), iconDock ? themeFile(dir, glassStrip) : null, topButtons,
+                clamp(bigClockOpacity, 30, 100), clamp(dockTransparency, 0, 100));
     }
 
     /** The deck as read from a theme: its titles, and its moods pointing at them by position. */

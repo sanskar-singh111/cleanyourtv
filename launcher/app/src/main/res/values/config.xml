@@ -491,6 +491,9 @@
     <!-- Where the big clock's digits start, as a share of the screen's height, 5 to 40 (16 by default): "big_clock_top".
          The date and weather line stays just above them. -->
     <integer name="big_clock_top">16</integer>
+    <!-- How solid the big clock's digits are in percent, 30 to 100 (80 by default); under 100 the sky shows through them:
+         "big_clock_opacity". -->
+    <integer name="big_clock_opacity">80</integer>
     <!-- Keep watching (false, default). A theme sets "keep_watching": true: a row above the dock of what Android TV's
          Watch Next lists (docs/watch-next.md): the app's name, the title and the episode. OK opens the item; the row is
          hidden when there is nothing in it. Needs READ_TV_LISTINGS (build-and-install grants it).
@@ -507,9 +510,12 @@
     <string name="dock_align" translatable="false">left</string>
     <!-- A glass panel behind the icon_dock (0, default, is none). A theme sets "glass_intensity" from 1 to 100 and
          "glass_strip" to a picture in its folder: the wallpaper's bottom, already blurred on a computer, as wide as the
-         screen. The launcher never blurs: it lays the strip in a rounded panel with a light tint, a 1 px edge, a highlight
+         screen. The launcher never blurs: it lays the strip in a rounded panel with a tint, a 1 px edge, a highlight
          along the top and a soft shadow under it, once, into one picture. -->
     <integer name="glass_intensity">0</integer>
+    <!-- How clear that glass is in percent, 0 to 100 (88 by default): the tint's opacity is the rest, and from
+         50 up more of the sharp wallpaper shows through the blur: "dock_transparency". -->
+    <integer name="dock_transparency">88</integer>
     <string name="glass_strip" translatable="false" />
     <!-- The buttons at the top right (true, default). A theme with "top_buttons": false has none; Up from the row
          under them then does nothing. -->

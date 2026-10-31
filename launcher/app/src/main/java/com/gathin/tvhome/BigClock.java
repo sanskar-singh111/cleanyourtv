@@ -21,8 +21,8 @@ final class BigClock {
     private static final float LINE_ABOVE = 0.063f;
     /** The digits of res/font/clock_digits.ttf are this share of its text size. */
     private static final float DIGIT_SHARE = 0.765f;
-    /** The digits let a little of the sky through, as glass would, over a very soft shadow for the bright sky. */
-    private static final int DIGITS_COLOR = 0xCCFFFFFF, LINE_COLOR = 0xF2FFFFFF, SHADOW = 0x59000000, DIGITS_SHADOW = 0x38000000;
+    /** A very soft, very light shadow under the digits, for the bright sky. */
+    private static final int LINE_COLOR = 0xF2FFFFFF, SHADOW = 0x59000000, DIGITS_SHADOW = 0x1C000000;
     /** The shadow's size in dp. */
     private static final float DIGITS_SHADOW_DP = 14;
 
@@ -31,7 +31,7 @@ final class BigClock {
     private final WeatherIcon icon = new WeatherIcon();
     private final TextView weatherText;
 
-    BigClock(Context context, int sizePercent, int topPercent, Typeface regular, Typeface digitsFont) {
+    BigClock(Context context, int sizePercent, int topPercent, int opacityPercent, Typeface regular, Typeface digitsFont) {
         float density = context.getResources().getDisplayMetrics().density;
         int screenH = context.getResources().getDisplayMetrics().heightPixels;
         view = new FrameLayout(context);
@@ -43,7 +43,7 @@ final class BigClock {
         digits.setFormat12Hour("h:mm");
         digits.setFormat24Hour("HH:mm");
         digits.setTypeface(digitsFont);
-        digits.setTextColor(DIGITS_COLOR);
+        digits.setTextColor(Math.round(255 * opacityPercent / 100f) << 24 | 0xFFFFFF);
         digits.setIncludeFontPadding(false);
         digits.setShadowLayer(DIGITS_SHADOW_DP * density, 0, density, DIGITS_SHADOW);
         // Room for the shadow at the sides, and one texture: it is blurred when the minute changes, not on every frame.
