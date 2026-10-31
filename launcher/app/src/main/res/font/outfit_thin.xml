@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Outfit at weight 100 for the big clock, built once per process like outfit_extralight. -->
+<font-family xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <font
+        android:font="@font/outfit"
+        android:fontStyle="normal"
+        android:fontWeight="100"
+        android:fontVariationSettings="'wght' 100"
+        tools:targetApi="28" />
+</font-family>

@@ -477,6 +477,32 @@
          "mood_surprise_reel": false for the row itself to spin left to right, slow down and stop on a title at random,
          then "Opening in 3…" under it: OK opens it now, Right spins again, Left or Back go back to browsing the row. -->
     <bool name="mood_surprise_reel">true</bool>
+    <!-- The wallpaper as layers (empty, default). A theme sets "scene" as an object of pictures in its folder, as
+         {"sky": "scene/sky.jpg", "clouds": "scene/clouds.png", "far": "scene/far.png", "front": "scene/front.png"}: the sky
+         fills the screen, the clouds hang from the top, far and front stand on the bottom edge. Only "front" is drawn
+         over big_clock; the others are one picture behind it. The theme's plain wallpaper is not used. -->
+    <string-array name="scene" translatable="false" />
+    <!-- A big thin clock (false, default). A theme sets "big_clock": true: the time large in the centre of the screen,
+         between the scene's layers so the front one overlaps the digits, with one line above it: the date, then the
+         weather icon, temperature and condition (weather_city). The small clock at the top left goes. -->
+    <bool name="big_clock">false</bool>
+    <!-- The big clock's digits as a share of the screen's height, 15 to 50 (34 by default): "big_clock_size". -->
+    <integer name="big_clock_size">34</integer>
+    <!-- Keep watching (false, default). A theme sets "keep_watching": true: a row above the dock of what Android TV's
+         Watch Next lists (docs/watch-next.md): the app's name, the title and the episode. OK opens the item; the row is
+         hidden when there is nothing in it. Needs READ_TV_LISTINGS (build-and-install grants it).
+         Optional "keep_watching_heading" is the line above the row. -->
+    <bool name="keep_watching">false</bool>
+    <string name="keep_watching_heading" translatable="false">Keep watching</string>
+    <!-- The dock as icons (false, default). A theme sets "icon_dock": true: the dock apps' own icons in rounded squares
+         (the sharpest the app has, else its banner), then Settings and "..." for More apps, all on one left-aligned row.
+         Focus grows the icon by focus_grow with a soft white glow, no box. "columns" still says how many apps. -->
+    <bool name="icon_dock">false</bool>
+    <!-- The size of the icons in dp, 40 to 100 (62 by default): "icon_dock_size". -->
+    <integer name="icon_dock_size">62</integer>
+    <!-- Own pictures for the icon_dock (empty, default). A theme sets "dock_icons" as an object of package to a PNG in
+         its folder, e.g. {"com.netflix.ninja": "icons/netflix.png"}; that app's own icon is then not used. -->
+    <string-array name="dock_icons" translatable="false" />
     <!-- "I've watched it" (false, default). A theme sets "mood_watched": true with "mood_posters": holding OK on the
          centre poster for "watchlist_remove_hold" seconds fills a ring, then offers "I've watched it" / "Cancel". The
          title is hidden from every mood (and the watchlist) at once and listed in watchlist_removed.json, as

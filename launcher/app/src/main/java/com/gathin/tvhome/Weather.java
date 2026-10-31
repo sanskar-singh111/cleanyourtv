@@ -35,11 +35,31 @@ final class Weather {
     static final class Reading {
         final int celsius;
         final int icon;
+        /** The WMO weather code, -1 when it isn't known. */
+        final int code;
 
-        Reading(int celsius, int icon) {
+        Reading(int celsius, int icon, int code) {
             this.celsius = celsius;
             this.icon = icon;
+            this.code = code;
         }
+    }
+
+    /** The condition in words for a WMO weather code as Open-Meteo reports it; empty when it isn't known. */
+    static String condition(int code) {
+        if (code == 0) return "Clear";
+        if (code == 1) return "Mostly clear";
+        if (code == 2) return "Partly cloudy";
+        if (code == 3) return "Cloudy";
+        if (code == 45 || code == 48) return "Fog";
+        if (code >= 51 && code <= 57) return "Drizzle";
+        if (code >= 61 && code <= 67) return "Rain";
+        if (code >= 71 && code <= 77) return "Snow";
+        if (code >= 80 && code <= 82) return "Showers";
+        if (code == 85 || code == 86) return "Snow showers";
+        if (code == 95) return "Thunderstorm";
+        if (code == 96 || code == 99) return "Thunderstorm with hail";
+        return "";
     }
 
     static final long REFRESH_MS = 30 * 60_000L;
@@ -84,7 +104,8 @@ final class Weather {
     private void show() {
         long at = prefs.getLong("at", 0);
         boolean fresh = at > 0 && System.currentTimeMillis() - at < STALE_MS;
-        listener.onWeather(fresh ? new Reading(prefs.getInt("celsius", 0), prefs.getInt("icon", WeatherIcon.CLOUDY)) : null);
+        listener.onWeather(fresh ? new Reading(prefs.getInt("celsius", 0), prefs.getInt("icon", WeatherIcon.CLOUDY),
+                prefs.getInt("code", -1)) : null);
     }
 
     /** Fetches when the kept reading is 30 minutes old, then checks again when the next one is due. */
@@ -92,7 +113,8 @@ final class Weather {
         main.removeCallbacks(tick);
         if (!active) return;
         long due = prefs.getLong("at", 0) + REFRESH_MS - System.currentTimeMillis();
-        if (due > 0) {
+        // A reading kept from before the condition was read is fetched again: the big clock's line needs it.
+        if (due > 0 && prefs.contains("code")) {
             main.postDelayed(tick, due);
             return;
         }
@@ -111,7 +133,7 @@ final class Weather {
             main.post(() -> {
                 fetching = false;
                 if (result == null) return;
-                prefs.edit().putInt("celsius", result.celsius).putInt("icon", result.icon)
+                prefs.edit().putInt("celsius", result.celsius).putInt("icon", result.icon).putInt("code", result.code)
                         .putLong("at", System.currentTimeMillis()).apply();
                 if (active) {
                     show();
@@ -186,6 +208,7 @@ final class Weather {
         JSONObject now = new JSONObject(json).optJSONObject("current");
         if (now == null || !now.has("temperature_2m")) return null;
         int celsius = (int) Math.round(now.getDouble("temperature_2m"));
-        return new Reading(celsius, WeatherIcon.forCode(now.optInt("weather_code", 3), now.optInt("is_day", 1) == 1));
+        int code = now.optInt("weather_code", 3);
+        return new Reading(celsius, WeatherIcon.forCode(code, now.optInt("is_day", 1) == 1), code);
     }
 }

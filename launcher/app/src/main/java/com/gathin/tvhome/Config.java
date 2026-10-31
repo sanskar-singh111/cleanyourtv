@@ -278,6 +278,19 @@ final class Config {
     final String moodPostersHeading;
     /** mood_surprise_reel: "Surprise me" is the deck's reel; false spins the posters row itself. */
     final boolean moodSurpriseReel;
+    /** scene: the wallpaper as layers, name (sky, clouds, far, front) to picture; empty when off. */
+    final Map<String, File> scene;
+    /** big_clock: a large thin clock in the screen's centre, behind the scene's front layer, and big_clock_size. */
+    final boolean bigClock;
+    final int bigClockSize;
+    /** keep_watching: the row of Android TV's Watch Next above the dock, and the words above it. */
+    final boolean keepWatching;
+    final String keepWatchingHeading;
+    /** icon_dock: the dock as the apps' own icons in rounded squares, then Settings and More apps; their size in dp. */
+    final boolean iconDock;
+    final int iconDockSize;
+    /** Package to its own picture for the icon_dock, instead of the app's icon. */
+    final Map<String, File> dockIcons;
 
     private Config(List<String> dockApps, boolean fillDock, List<String> hiddenApps, List<String> libraryApps, String liveTvPackage,
                    String liveTvAction, String liveTvInputId, Map<String, String> launchActions, Map<String, String> appLabels,
@@ -300,7 +313,17 @@ final class Config {
                    int screensaverFadeMs, int screensaverSlideMinutes, List<File> screensaverImages,
                    boolean watchlist, List<Watchlist.Item> watchlistItems, String watchlistHeading, boolean watchlistEffects,
                    boolean watchlistRemove, int watchlistRemoveHoldSeconds, boolean moodDeck, MoodDeckData moodDeckData, String moodDeckHeading,
-                   boolean moodPosters, boolean moodWatched, String moodPostersHeading, boolean moodSurpriseReel) {
+                   boolean moodPosters, boolean moodWatched, String moodPostersHeading, boolean moodSurpriseReel,
+                   Map<String, File> scene, boolean bigClock, int bigClockSize, boolean keepWatching, String keepWatchingHeading,
+                   boolean iconDock, int iconDockSize, Map<String, File> dockIcons) {
+        this.scene = Collections.unmodifiableMap(scene);
+        this.bigClock = bigClock;
+        this.bigClockSize = bigClockSize;
+        this.keepWatching = keepWatching;
+        this.keepWatchingHeading = keepWatchingHeading == null ? "" : keepWatchingHeading;
+        this.iconDock = iconDock;
+        this.iconDockSize = iconDockSize;
+        this.dockIcons = Collections.unmodifiableMap(dockIcons);
         this.watchlist = watchlist && !watchlistItems.isEmpty();
         this.moodDeckMoods = Collections.unmodifiableList(MoodDeck.usable(moodDeckData.moods));
         this.moodDeckTitles = Collections.unmodifiableList(moodDeckData.titles);
@@ -546,6 +569,14 @@ final class Config {
         boolean moodWatched = res.getBoolean(R.bool.mood_watched);
         String moodPostersHeading = "";
         boolean moodSurpriseReel = res.getBoolean(R.bool.mood_surprise_reel);
+        List<String> scene = new ArrayList<>(Arrays.asList(res.getStringArray(R.array.scene)));
+        boolean bigClock = res.getBoolean(R.bool.big_clock);
+        int bigClockSize = res.getInteger(R.integer.big_clock_size);
+        boolean keepWatching = res.getBoolean(R.bool.keep_watching);
+        String keepWatchingHeading = res.getString(R.string.keep_watching_heading);
+        boolean iconDock = res.getBoolean(R.bool.icon_dock);
+        int iconDockSize = res.getInteger(R.integer.icon_dock_size);
+        List<String> dockIcons = new ArrayList<>(Arrays.asList(res.getStringArray(R.array.dock_icons)));
         boolean applied = false;
 
         File dir = dir(ctx);
@@ -663,6 +694,14 @@ final class Config {
             moodWatched = bool(json, "mood_watched", moodWatched);
             moodPostersHeading = string(json, "mood_posters_heading", moodPostersHeading);
             moodSurpriseReel = bool(json, "mood_surprise_reel", moodSurpriseReel);
+            scene = packageEntries(json, "scene", scene);
+            bigClock = bool(json, "big_clock", bigClock);
+            bigClockSize = integer(json, "big_clock_size", bigClockSize, 15, 50);
+            keepWatching = bool(json, "keep_watching", keepWatching);
+            keepWatchingHeading = string(json, "keep_watching_heading", keepWatchingHeading);
+            iconDock = bool(json, "icon_dock", iconDock);
+            iconDockSize = integer(json, "icon_dock_size", iconDockSize, 40, 100);
+            dockIcons = packageEntries(json, "dock_icons", dockIcons);
         }
         // A theme push or reset invalidates choices made on the TV. On first use, remember the
         // current theme without clearing choices from an older launcher version.
@@ -736,7 +775,9 @@ final class Config {
                 clamp(watchlistRemoveHold, WatchlistRemovals.HOLD_MIN_S, WatchlistRemovals.HOLD_MAX_S),
                 // Nor of the deck unless it and the watchlist are on.
                 moodDeck, moodDeck && watchlist && json != null ? moodDeck(json, dir) : new MoodDeckData(), moodDeckHeading,
-                moodPosters, moodWatched, moodPostersHeading, moodSurpriseReel);
+                moodPosters, moodWatched, moodPostersHeading, moodSurpriseReel,
+                themeFiles(dir, packageMap(scene)), bigClock, clamp(bigClockSize, 15, 50), keepWatching, keepWatchingHeading,
+                iconDock, clamp(iconDockSize, 40, 100), themeFiles(dir, packageMap(dockIcons)));
     }
 
     /** The deck as read from a theme: its titles, and its moods pointing at them by position. */

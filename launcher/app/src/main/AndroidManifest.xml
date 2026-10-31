@@ -21,6 +21,9 @@
          list (ServiceRepair). Granted with pm grant by build-and-install when a helper is enabled. -->
     <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS"
         tools:ignore="ProtectedPermissions" />
+    <!-- keep_watching reads Android TV's Watch Next. A runtime permission, granted with pm grant by build-and-install,
+         so nothing asks on the TV. -->
+    <uses-permission android:name="android.permission.READ_TV_LISTINGS" />
     <!-- YaOS (Yandex TV OS): HDMI, AV and the tuner all play in com.yandex.tv.live, whose activities require
          this permission (protection level normal, so it is granted at install). Ignored on other TVs. -->
     <uses-permission android:name="yandex.tv.permission.ACCESS_TV_SOURCE" />
@@ -63,6 +66,8 @@
         <package android:name="com.xiaomi.mitv.settings" />
         <package android:name="com.tcl.settings" />
         <package android:name="com.amazon.tv.launcher" />
+        <!-- Watch Next (keep_watching). -->
+        <provider android:authorities="android.media.tv" />
         <!-- Coocaa OS sources for the Inputs menu (coocaa_sources); see CoocaaSources. -->
         <provider android:authorities="com.skyworth.tv.provider" />
         <provider android:authorities="com.skyworth.tv.sdk.provider" />

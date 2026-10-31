@@ -6,5 +6,6 @@
     <string name="font_regular" translatable="false">@font/outfit_regular</string>
     <string name="font_light" translatable="false">@font/outfit_light</string>
     <string name="font_extralight" translatable="false">@font/outfit_extralight</string>
+    <string name="font_thin" translatable="false">@font/outfit_thin</string>
     <string name="font_medium" translatable="false">@font/outfit_medium</string>
 </resources>
