@@ -4,6 +4,7 @@ import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.BitmapShader;
+import android.graphics.BlurMaskFilter;
 import android.graphics.Canvas;
 import android.graphics.ColorSpace;
 import android.graphics.LinearGradient;
@@ -31,7 +32,13 @@ import java.util.concurrent.Executors;
  */
 final class DockGlass {
     /** How far the panel reaches past the icons, in dp, and how much the Keep watching row rises to keep clear of it. */
-    static final float SIDE_DP = 14, EDGE_DP = 11, ROW_LIFT_DP = 6;
+    static final float SIDE_DP = 18, EDGE_DP = 15, ROW_LIFT_DP = 8;
+    /** The soft shadow under the panel: its blur and how far down it sits, in dp. The picture is this much bigger all round. */
+    private static final float SHADOW_DP = 16, SHADOW_DROP_DP = 6, MARGIN_DP = 30;
+    /** The panel's corners, as a share of the room above the icons on top of the icons' own. */
+    private static final float CORNER = 1.4f;
+    /** The edge's strength part-way down and at the bottom, as shares of its top. */
+    private static final float EDGE_MIDDLE = 0.38f, EDGE_BOTTOM = 0.30f;
     private static final String TAG = "TvHome.DockGlass";
 
     private final ViewGroup scene;
@@ -64,25 +71,31 @@ final class DockGlass {
         return centered ? Math.max(side, (width - icons) / 2) : side;
     }
 
-    /** The tint's alpha, from a whisper to a soft milky veil. */
+    /** The tint's alpha: light even at its strongest, so the wallpaper's colour stays clear. */
     static int tintAlpha(int intensity) {
-        return Math.round(255 * (0.04f + 0.10f * intensity / 100f));
+        return Math.round(255 * (0.01f + 0.05f * intensity / 100f));
     }
 
-    /** The edge's alpha at the top of the panel; it fades to half of this at the bottom. */
+    /** The edge's alpha along the top of the panel; it falls to EDGE_BOTTOM of this at the bottom. */
     static int edgeAlpha(int intensity) {
-        return Math.round(255 * (0.20f + 0.42f * intensity / 100f));
+        return Math.round(255 * (0.35f + 0.50f * intensity / 100f));
     }
 
     /** The highlight's alpha at the very top. */
     static int highlightAlpha(int intensity) {
-        return Math.round(255 * (0.04f + 0.14f * intensity / 100f));
+        return Math.round(255 * (0.02f + 0.08f * intensity / 100f));
+    }
+
+    /** The shadow's alpha. */
+    static int shadowAlpha(int intensity) {
+        return Math.round(255 * (0.12f + 0.28f * intensity / 100f));
     }
 
     /** The panel around the icons at (x, y), `icons` wide and `tall` high, in the dock's frame. */
     void place(int x, int y, int icons, int tall, float iconRadius) {
         int side = Math.round(SIDE_DP * density), edge = Math.round(EDGE_DP * density);
-        Rect wanted = new Rect(x - side, y - edge, x + icons + side, y + tall + edge);
+        int margin = Math.round(MARGIN_DP * density);
+        Rect wanted = new Rect(x - side - margin, y - edge - margin, x + icons + side + margin, y + tall + edge + margin);
         if (wanted.equals(placed)) return;
         placed.set(wanted);
         FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) view.getLayoutParams();
@@ -90,7 +103,7 @@ final class DockGlass {
         lp.height = wanted.height();
         lp.leftMargin = wanted.left;
         lp.topMargin = wanted.top;
-        float radius = iconRadius + edge;
+        float radius = iconRadius + edge * CORNER;
         view.post(() -> {
             view.setLayoutParams(lp);
             view.post(() -> {
@@ -98,7 +111,7 @@ final class DockGlass {
                 Rect onScene = new Rect(0, 0, lp.width, lp.height);
                 scene.offsetDescendantRectToMyCoords(view, onScene);
                 baker.execute(() -> {
-                    Bitmap baked = bake(lp.width, lp.height, onScene.left, onScene.top, radius);
+                    Bitmap baked = bake(lp.width, lp.height, margin, onScene.left, onScene.top, radius);
                     view.post(() -> show(baked));
                 });
             });
@@ -111,7 +124,8 @@ final class DockGlass {
         view.animate().alpha(1f).setDuration(220).start();
     }
 
-    private Bitmap bake(int w, int h, int left, int top, float radius) {
+    /** The picture, w x h with the panel `margin` inside it; (left, top) is the picture's place on the wallpaper. */
+    private Bitmap bake(int w, int h, int margin, int left, int top, float radius) {
         Bitmap in = null;
         try {
             BitmapFactory.Options options = new BitmapFactory.Options();
@@ -121,29 +135,38 @@ final class DockGlass {
             if (in == null) return null;
             Bitmap out = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
             Canvas canvas = new Canvas(out);
-            RectF rect = new RectF(0, 0, w, h);
+            RectF rect = new RectF(margin, margin, w - margin, h - margin);
+            Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
+            paint.setColor(shadowAlpha(intensity) << 24);
+            paint.setMaskFilter(new BlurMaskFilter(SHADOW_DP * density, BlurMaskFilter.Blur.NORMAL));
+            RectF under = new RectF(rect);
+            under.offset(0, SHADOW_DROP_DP * density);
+            canvas.drawRoundRect(under, radius, radius, paint);
+            paint.setMaskFilter(null);
             float scale = (float) screenW / in.getWidth();
             BitmapShader shader = new BitmapShader(in, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
             Matrix matrix = new Matrix();
             matrix.setScale(scale, scale);
             matrix.postTranslate(-left, screenH - in.getHeight() * scale - top);
             shader.setLocalMatrix(matrix);
-            Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
+            paint.setColor(0xFFFFFFFF);
             paint.setShader(shader);
             canvas.drawRoundRect(rect, radius, radius, paint);
             paint.setShader(null);
             paint.setColor(tintAlpha(intensity) << 24 | 0xFFFFFF);
             canvas.drawRoundRect(rect, radius, radius, paint);
             paint.setColor(0xFFFFFFFF);
-            paint.setShader(new LinearGradient(0, 0, 0, h * 0.42f, highlightAlpha(intensity) << 24 | 0xFFFFFF, 0x00FFFFFF, Shader.TileMode.CLAMP));
+            paint.setShader(new LinearGradient(0, rect.top, 0, rect.top + rect.height() * 0.42f, highlightAlpha(intensity) << 24 | 0xFFFFFF, 0x00FFFFFF, Shader.TileMode.CLAMP));
             canvas.drawRoundRect(rect, radius, radius, paint);
+            // One real pixel, on the pixel grid: bright along the top, fainter along the bottom.
             int edge = edgeAlpha(intensity);
-            float line = Math.max(1f, 0.75f * density), half = line / 2;
             paint.setStyle(Paint.Style.STROKE);
-            paint.setStrokeWidth(line);
-            paint.setShader(new LinearGradient(0, 0, 0, h, edge << 24 | 0xFFFFFF, (edge / 2) << 24 | 0xFFFFFF, Shader.TileMode.CLAMP));
-            rect.inset(half, half);
-            canvas.drawRoundRect(rect, radius - half, radius - half, paint);
+            paint.setStrokeWidth(1f);
+            paint.setShader(new LinearGradient(0, rect.top, 0, rect.bottom,
+                    new int[]{edge << 24 | 0xFFFFFF, Math.round(edge * EDGE_MIDDLE) << 24 | 0xFFFFFF, Math.round(edge * EDGE_BOTTOM) << 24 | 0xFFFFFF},
+                    new float[]{0f, 0.3f, 1f}, Shader.TileMode.CLAMP));
+            rect.inset(0.5f, 0.5f);
+            canvas.drawRoundRect(rect, radius - 0.5f, radius - 0.5f, paint);
             return SceneLayers.onGpu(out);
         } catch (Exception | OutOfMemoryError e) {
             Log.w(TAG, "no glass panel: " + e);

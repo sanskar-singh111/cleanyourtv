@@ -11,6 +11,8 @@ import android.graphics.BlurMaskFilter;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
+import android.graphics.PorterDuff;
+import android.graphics.PorterDuffXfermode;
 import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.drawable.AdaptiveIconDrawable;
@@ -177,14 +179,22 @@ final class DockIcon {
         return out;
     }
 
-    /** A soft white rounded square for behind a focused tile; drawn once, it is all blur so it scales freely. */
+    /**
+     * A soft white light around a focused tile; drawn once, it is all blur so it scales freely. The tile's own square stays
+     * empty: the frosted tiles show what's behind them, and white under them would hide their white marks.
+     */
     static Bitmap glow(int tile, int pad, float radius) {
         int size = tile + 2 * pad;
         Bitmap out = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
         Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
-        p.setColor(0xB3FFFFFF);
+        p.setColor(0x8CFFFFFF);
         p.setMaskFilter(new BlurMaskFilter(pad * 0.62f, BlurMaskFilter.Blur.NORMAL));
-        new Canvas(out).drawRoundRect(new RectF(pad, pad, size - pad, size - pad), radius, radius, p);
+        Canvas canvas = new Canvas(out);
+        RectF square = new RectF(pad, pad, size - pad, size - pad);
+        canvas.drawRoundRect(square, radius, radius, p);
+        Paint hole = new Paint(Paint.ANTI_ALIAS_FLAG);
+        hole.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.CLEAR));
+        canvas.drawRoundRect(square, radius, radius, hole);
         return out;
     }
 }

@@ -155,7 +155,7 @@ A new key needs one there in the same pull request.
 | `icon_dock_size` | number | The icons' size in dp, 40 to 100 (62 by default) |
 | `dock_icons` | object | Package to your own PNG for `icon_dock`, such as `{"com.netflix.ninja": "icons/netflix.png"}`, instead of the app's icon |
 | `dock_align` | text | Where the `icon_dock` sits: `left` (default) or `center`. The Keep watching row follows: its heading moves to the middle, and fewer cards than fill the row are centred |
-| `glass_intensity` | number | A glass panel behind the `icon_dock`, 0 to 100 (0, none, by default), with `glass_strip`: a soft tint, a thin bright edge and a highlight along the top, stronger as it rises. The launcher never blurs |
+| `glass_intensity` | number | A glass panel behind the `icon_dock`, 0 to 100 (0, none, by default), with `glass_strip`: a light tint, a crisp 1 px edge (bright on top, fainter at the bottom), a highlight along the top and a soft shadow under it, stronger as it rises. The launcher never blurs |
 | `glass_strip` | text | A picture in the theme's folder for `glass_intensity`: the wallpaper's bottom, blurred on a computer, as wide as the screen and resting on its bottom edge. TV Studio makes it as `scene/glass.jpg` |
 | `top_buttons` | true/false | The buttons at the top right (on by default). Off, none show, and Up from the row under them does nothing |
 | `cinematic_home` | bool | Cinematic top shelf: the focused dock app's artwork, softened, fills the top of the screen in its colour, with a larger name, "Last opened" (apps opened from Home), dock position dots, a focus glow in the app's colour and a translucent dock band; off by default |

@@ -16,6 +16,7 @@ import android.graphics.PixelFormat;
 import android.graphics.Rect;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
+import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.provider.Settings;
 import android.util.DisplayMetrics;
@@ -106,6 +107,8 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     static final int DOCK_ACTIONS = 2;
     /** icon_dock: the corners and the space between tiles, as shares of a tile. */
     static final float ICON_RADIUS = 0.23f, ICON_GAP = 0.30f;
+    /** icon_dock: the focused tile only grows this much and lifts this far in dp, whatever focus_grow is, so the row stays calm. */
+    static final float ICON_GROW = 1.08f, ICON_LIFT_DP = 4;
     /** Design size of a tile (dp); tiles shrink from here when the columns don't fit, see tileWidthPx. */
     static final float DESIGN_W_DP = 180f, DESIGN_H_DP = 101f;
 
@@ -384,7 +387,7 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     private int addDockActions(List<Entry> fresh, int apps, Map<String, ResolveInfo> info) {
         int shown = Math.min(apps, Math.max(0, dockSize - DOCK_ACTIONS));
         // The picture is drawn at the size focus grows it to, so it stays sharp there.
-        int size = Math.round(iconPx * growScale);
+        int size = Math.round(iconPx * ICON_GROW);
         for (int i = 0; i < shown; i++) {
             Entry e = fresh.get(i);
             ResolveInfo ri = info.get(e.pkg);
@@ -491,7 +494,7 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         }
         name.setLayoutParams(nameLp);
         Holder holder = new Holder(v, listener, animations, advancedEffects, reducedMotion, restNameAlpha, focusOvershoot, plainFocus,
-                growScale, growMs);
+                icons ? ICON_GROW : growScale, growMs);
         if (icons) addGlow(holder, (ViewGroup) v, w);
         return holder;
     }
@@ -506,10 +509,11 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         glow.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
         FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(tile + 2 * pad, tile + 2 * pad, Gravity.START | Gravity.TOP);
         lp.leftMargin = -pad;
-        lp.topMargin = item.getPaddingTop() - pad;
+        lp.topMargin = -pad;   // from inside the item's padding, where the tile starts too
         item.addView(glow, 0, lp);
         holder.glow = glow;
         holder.radiusShare = ICON_RADIUS;
+        holder.lift = ICON_LIFT_DP * density(ctx);
     }
 
     @Override
@@ -604,18 +608,34 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         });
     }
 
-    /** icon_dock: the picture, or the white mark on dark glass for Settings and More apps; no names, no card. */
+    private static float density(Context context) {
+        return context.getResources().getDisplayMetrics().density;
+    }
+
+    /** Settings and More apps: a frosted square, lighter at its top, with a thin light edge. It shows the glass behind it. */
+    private GradientDrawable frosted() {
+        GradientDrawable d = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{0x42FFFFFF, 0x24FFFFFF});
+        d.setCornerRadius(iconPx * ICON_RADIUS);
+        d.setStroke(1, 0x38FFFFFF);
+        return d;
+    }
+
+    /** icon_dock: the picture, or the white mark on a frosted square for Settings and More apps; no names, no card. */
     private void bindIconTile(Holder h, Entry e) {
         boolean action = e.kind == Entry.SETTINGS || e.kind == Entry.MORE;
         boolean focused = h.card.isFocused();
         h.logo = false;
         h.name.setVisibility(View.INVISIBLE);
-        h.card.setScaleX(focused && animations ? growScale : 1f);
-        h.card.setScaleY(focused && animations ? growScale : 1f);
+        boolean up = focused && animations;
+        h.card.setScaleX(up ? ICON_GROW : 1f);
+        h.card.setScaleY(up ? ICON_GROW : 1f);
+        h.card.setTranslationY(up ? -h.lift : 0f);
         h.glow.setAlpha(focused ? 1f : 0f);
-        h.glow.setScaleX(focused ? growScale : 1f);
-        h.glow.setScaleY(focused ? growScale : 1f);
-        h.card.setBackgroundColor(action ? 0x8C26262C : 0);
+        h.glow.setScaleX(up ? ICON_GROW : 1f);
+        h.glow.setScaleY(up ? ICON_GROW : 1f);
+        h.glow.setTranslationY(up ? -h.lift : 0f);
+        if (action) h.card.setBackground(frosted());
+        else h.card.setBackgroundColor(0);
         h.label.setVisibility(View.GONE);
         if (e.dockArt != null) {
             h.banner.setImageBitmap(e.dockArt);
@@ -891,6 +911,8 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         /** icon_dock: the light behind the tile, and the corners as a share of its width (0: the usual corners). */
         ImageView glow;
         float radiusShare;
+        /** icon_dock: how far a focused tile rises, in pixels. */
+        float lift;
 
         Holder(View v, TileListener listener, boolean animations, boolean advancedEffects,
                boolean reducedMotion, float restNameAlpha, boolean overshoot, boolean plain, float growScale, int growMs) {
@@ -946,9 +968,10 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
                     name.setTranslationY(0f);
                 } else if (plain) {
                     float g = focused ? growScale : 1f;
-                    view.animate().scaleX(g).scaleY(g).setDuration(growMs)
+                    float y = focused ? -lift : 0f;
+                    view.animate().scaleX(g).scaleY(g).translationY(y).setDuration(growMs)
                             .setInterpolator(new DecelerateInterpolator()).withLayer().start();
-                    if (glow != null) glow.animate().alpha(focused ? 1f : 0f).scaleX(g).scaleY(g).setDuration(growMs)
+                    if (glow != null) glow.animate().alpha(focused ? 1f : 0f).scaleX(g).scaleY(g).translationY(y).setDuration(growMs)
                             .setInterpolator(new DecelerateInterpolator()).start();
                     if (logo) name.animate().alpha(focused ? 1f : restNameAlpha).setDuration(growMs).start();
                     else name.setAlpha(focused ? 1f : restNameAlpha);

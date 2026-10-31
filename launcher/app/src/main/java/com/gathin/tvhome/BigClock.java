@@ -21,8 +21,10 @@ final class BigClock {
     private static final float LINE_ABOVE = 0.063f;
     /** The digits of res/font/clock_digits.ttf are this share of its text size. */
     private static final float DIGIT_SHARE = 0.765f;
-    /** The digits let a little of the sky through, as glass would. */
-    private static final int DIGITS_COLOR = 0xD2FFFFFF, LINE_COLOR = 0xF2FFFFFF, SHADOW = 0x59000000;
+    /** The digits let a little of the sky through, as glass would, over a very soft shadow for the bright sky. */
+    private static final int DIGITS_COLOR = 0xCCFFFFFF, LINE_COLOR = 0xF2FFFFFF, SHADOW = 0x59000000, DIGITS_SHADOW = 0x38000000;
+    /** The shadow's size in dp. */
+    private static final float DIGITS_SHADOW_DP = 14;
 
     final FrameLayout view;
     private final LinearLayout weather;
@@ -43,6 +45,11 @@ final class BigClock {
         digits.setTypeface(digitsFont);
         digits.setTextColor(DIGITS_COLOR);
         digits.setIncludeFontPadding(false);
+        digits.setShadowLayer(DIGITS_SHADOW_DP * density, 0, density, DIGITS_SHADOW);
+        // Room for the shadow at the sides, and one texture: it is blurred when the minute changes, not on every frame.
+        int room = Math.round(DIGITS_SHADOW_DP * density * 1.5f);
+        digits.setPadding(room, 0, room, 0);
+        digits.setLayerType(View.LAYER_TYPE_HARDWARE, null);
         float textSize = screenH * sizePercent / 100f / DIGIT_SHARE;
         digits.setTextSize(TypedValue.COMPLEX_UNIT_PX, textSize);
         FrameLayout.LayoutParams dlp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,

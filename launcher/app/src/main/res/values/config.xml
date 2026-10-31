@@ -507,8 +507,8 @@
     <string name="dock_align" translatable="false">left</string>
     <!-- A glass panel behind the icon_dock (0, default, is none). A theme sets "glass_intensity" from 1 to 100 and
          "glass_strip" to a picture in its folder: the wallpaper's bottom, already blurred on a computer, as wide as the
-         screen. The launcher never blurs: it lays the strip in a rounded panel with a soft tint, a thin bright edge and
-         a highlight along the top, once, into one picture. -->
+         screen. The launcher never blurs: it lays the strip in a rounded panel with a light tint, a 1 px edge, a highlight
+         along the top and a soft shadow under it, once, into one picture. -->
     <integer name="glass_intensity">0</integer>
     <string name="glass_strip" translatable="false" />
     <!-- The buttons at the top right (true, default). A theme with "top_buttons": false has none; Up from the row

@@ -24,6 +24,11 @@ public class DockGlassTest {
         assertTrue(DockGlass.tintAlpha(100) > DockGlass.tintAlpha(1));
         assertTrue(DockGlass.edgeAlpha(100) > DockGlass.edgeAlpha(1));
         assertTrue(DockGlass.highlightAlpha(100) > DockGlass.highlightAlpha(1));
+        assertTrue(DockGlass.shadowAlpha(100) > DockGlass.shadowAlpha(1));
         assertTrue(DockGlass.edgeAlpha(100) <= 255);
+    }
+
+    @Test public void theTintStaysLightSoTheGlassIsClear() {
+        assertTrue(DockGlass.tintAlpha(100) < 0.07f * 255);
     }
 }
