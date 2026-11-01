@@ -186,6 +186,7 @@ esac
 #                         It also handles input_key_keycodes and app_keys (config.xml or a theme; a YouTube button)
 #   HOME_KEY_SERVICE=1    remotes whose Home button sends KEYCODE_ALL_APPS instead of HOME, e.g. Xiaomi
 #                         sticks: the key is routed to the launcher (HomeKeyService)
+#                         It also counts the presses of idle_key (config.xml or a theme)
 #   RESTORE_KEY_SERVICES=1  grants WRITE_SECURE_SETTINGS, so that with restore_key_services (config.xml or a
 #                         theme) Home puts these helpers back after a force stop of the launcher
 # TCL firmware (TclAppBoot) refuses to bind an app's accessibility service while the app is not running unless it

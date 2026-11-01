@@ -22,6 +22,8 @@ final class WakeMotion implements Choreographer.FrameCallback {
     private static final float DAMPING = 0.72f, FREQUENCY = 14f;
     /** How long the fade takes, how long the row waits behind the dock, and when the spring counts as stopped, in seconds. */
     static final float FADE_S = 0.3f, ROW_DELAY_S = 0.09f, END_S = 0.7f;
+    /** 254 of 255: enough for the GPU to draw these views as translucent, not enough to see. */
+    static final float WARM_ALPHA = 0.996f;
 
     /** One group's place: where it stands and where this run started from, 0 away and 1 at rest (more in the overshoot). */
     private static final class Part {
@@ -108,6 +110,35 @@ final class WakeMotion implements Choreographer.FrameCallback {
             apply(p);
         }
         settled.run();
+    }
+
+    /**
+     * Draws everything that moves for one frame just under full alpha, nothing anyone can see. The first translucent draw of
+     * these views makes the GPU build its programs, 130 ms on a Xiaomi MOOQ3 after an install, 33 ms from Android's shader cache
+     * after that, which would otherwise fall in the first frames of the first leave. Done while Home is still, it costs nothing seen.
+     */
+    void warmUp(List<View> fading) {
+        if (running) return;
+        this.fading = fading;
+        for (Part p : parts()) p.mover.move(WARM_ALPHA, 0f);
+        Choreographer choreographer = Choreographer.getInstance();
+        choreographer.postFrameCallback(drawing -> choreographer.postFrameCallback(drawn -> {
+            if (running) return;
+            for (Part p : parts()) apply(p);
+        }));
+    }
+
+    /** Gone at once, for arriving on the idle screen from an app: the dock is never seen leaving. */
+    void away(List<View> fading, float distance) {
+        if (running) Choreographer.getInstance().removeFrameCallback(this);
+        running = false;
+        this.fading = fading;
+        this.distance = distance;
+        for (Part p : parts()) {
+            p.place = 0f;
+            p.alpha = 0f;
+            apply(p);
+        }
     }
 
     private Part[] parts() {

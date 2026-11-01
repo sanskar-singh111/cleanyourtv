@@ -319,6 +319,11 @@ final class Config {
     /** wake_animation: Home wakes with the dock rising on a spring, and wake_animation_speed in percent. */
     final boolean wakeAnimation;
     final int wakeAnimationSpeed;
+    /** idle_key: HomeKeyService shows the idle screen on idleKeyPresses quick presses of a button in idleKeyScancodes. */
+    final boolean idleKey, idleKeyOnly;
+    final int[] idleKeyScancodes;
+    final int idleKeyPresses;
+    final String idleKeyApp;
     /** top_buttons: false hides the buttons at the top right. */
     final boolean topButtons;
 
@@ -348,7 +353,8 @@ final class Config {
                    boolean iconDock, int iconDockSize, Map<String, File> dockIcons, int bigClockTop, boolean dockCentered,
                    int glassIntensity, File glassStrip, boolean topButtons, int bigClockOpacity, int dockTransparency,
                    File bigClockGlass, File glassRim, int glassShine, boolean glassSweep, WeatherLooks weatherScene,
-                   ThemeFonts fonts, boolean wakeAnimation, int wakeAnimationSpeed) {
+                   ThemeFonts fonts, boolean wakeAnimation, int wakeAnimationSpeed,
+                   boolean idleKey, int[] idleKeyScancodes, int idleKeyPresses, String idleKeyApp, boolean idleKeyOnly) {
         this.scene = Collections.unmodifiableMap(scene);
         this.bigClock = bigClock;
         this.bigClockSize = bigClockSize;
@@ -367,6 +373,11 @@ final class Config {
         this.fonts = fonts;
         this.wakeAnimation = wakeAnimation;
         this.wakeAnimationSpeed = wakeAnimationSpeed;
+        this.idleKey = idleKey && idleKeyScancodes.length > 0;
+        this.idleKeyScancodes = idleKeyScancodes;
+        this.idleKeyPresses = idleKeyPresses;
+        this.idleKeyApp = idleKeyApp;
+        this.idleKeyOnly = idleKeyOnly;
         this.weatherScene = scene.isEmpty() || weatherCity.isEmpty() ? null : weatherScene;
         this.dockCentered = dockCentered;
         this.glassIntensity = glassStrip == null ? 0 : glassIntensity;
@@ -637,6 +648,11 @@ final class Config {
         boolean glassSweep = res.getBoolean(R.bool.glass_sweep);
         boolean wakeAnimation = res.getBoolean(R.bool.wake_animation);
         int wakeAnimationSpeed = res.getInteger(R.integer.wake_animation_speed);
+        boolean idleKey = res.getBoolean(R.bool.idle_key);
+        int[] idleKeyScancodes = res.getIntArray(R.array.idle_key_scancodes);
+        int idleKeyPresses = res.getInteger(R.integer.idle_key_presses);
+        String idleKeyApp = res.getString(R.string.idle_key_app);
+        boolean idleKeyOnly = res.getBoolean(R.bool.idle_key_only);
         JSONObject fonts = null;
         String fontsText = res.getString(R.string.fonts).trim();
         if (!fontsText.isEmpty()) {
@@ -793,6 +809,11 @@ final class Config {
             glassSweep = json.optBoolean("glass_sweep", glassSweep);
             wakeAnimation = bool(json, "wake_animation", wakeAnimation);
             wakeAnimationSpeed = integer(json, "wake_animation_speed", wakeAnimationSpeed, 50, 200);
+            idleKey = bool(json, "idle_key", idleKey);
+            idleKeyScancodes = intArray(json, "idle_key_scancodes", idleKeyScancodes);
+            idleKeyPresses = integer(json, "idle_key_presses", idleKeyPresses, IdleKey.MIN_PRESSES, IdleKey.MAX_PRESSES);
+            idleKeyApp = string(json, "idle_key_app", idleKeyApp);
+            idleKeyOnly = bool(json, "idle_key_only", idleKeyOnly);
             if (json.has("fonts")) fonts = json.optJSONObject("fonts");
             if (json.has("weather_scene")) weatherScene = json.optJSONObject("weather_scene");
             topButtons = bool(json, "top_buttons", topButtons);
@@ -875,7 +896,8 @@ final class Config {
                 "center".equals(dockAlign), clamp(glassIntensity, 0, 100), iconDock ? themeFile(dir, glassStrip) : null, topButtons,
                 clamp(bigClockOpacity, 30, 100), clamp(dockTransparency, 0, 100), bigClock ? themeFile(dir, bigClockGlass) : null,
                 iconDock ? themeFile(dir, glassRim) : null, clamp(glassShine, 0, 100), glassSweep, WeatherLooks.parse(weatherScene, dir),
-                new ThemeFonts(fonts, dir), wakeAnimation, clamp(wakeAnimationSpeed, 50, 200));
+                new ThemeFonts(fonts, dir), wakeAnimation, clamp(wakeAnimationSpeed, 50, 200),
+                idleKey, idleKeyScancodes, clamp(idleKeyPresses, IdleKey.MIN_PRESSES, IdleKey.MAX_PRESSES), idleKeyApp.trim(), idleKeyOnly);
     }
 
     /** The deck as read from a theme: its titles, and its moods pointing at them by position. */

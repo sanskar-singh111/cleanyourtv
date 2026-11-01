@@ -105,6 +105,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     static final String ACTION_LAUNCHER_SETTINGS = "com.gathin.tvhome.action.LAUNCHER_SETTINGS";
     /** The system input switcher, forwarded here by InputsRequestActivity while handle_view_inputs is on. */
     static final String ACTION_VIEW_INPUTS = "com.android.tv.action.VIEW_INPUTS";
+    /** idle_key: HomeKeyService asks for the idle screen now. */
+    static final String ACTION_IDLE_NOW = "com.gathin.tvhome.action.IDLE_NOW";
     /** Tiles per row and dock slots (res/values/config.xml, columns). Set in onCreate. */
     static int COLUMNS = 4;
     private boolean rtlAppGrid;
@@ -151,14 +153,18 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     /** focus_grow / focus_grow_ms for bare_buttons' icons. */
     private float growScale = AppAdapter.FOCUS_SCALE;
     private int growMs = 180;
-    private final Runnable fadeHome = () -> {
-        if (this.inWatchlist) exitWatchlist(false);   // the screensaver fades Home itself, not the lineup over it
-        faded = true;
-        updateSweep();
-        if (this.wakeMotion != null) leaveWithMotion();
-        else for (View v : fadingViews()) v.animate().alpha(0f).setDuration(saverFadeMs).start();
-        showSaver();
+    private final Runnable fadeHome = () -> goIdle(false);
+    /** wake_animation's warm-up, once per Home, a moment after it starts: the dock's tiles and panel are in place by then. */
+    private static final long WARM_UP_MS = 2500;
+    private boolean warmedUp;
+    private final Runnable warmUpMotion = () -> {
+        warmedUp = true;
+        if (!faded) this.wakeMotion.warmUp(wakeFades());
     };
+    /** idle_key asked while Home wasn't resumed: onResume does it, at once if Home was covered by an app. */
+    private boolean idleOnResume, idleAtOnce;
+    /** Android may pause Home around onNewIntent, which unfades it, so a second ask on the idle screen is told by this. */
+    private boolean fadedAtPause, idleWakes;
     private String liveTvAction;
     private String liveTvInputId;
     /** The app library is on (config.xml, app_library): only then can the tile menu take an app off Home. */
@@ -954,7 +960,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                     .build(), vpnCallback);
         }
         // Not after recreate(): the launch intent survives it and would open the settings again.
-        if (savedInstanceState == null && !openLauncherSettingsIfAsked(getIntent())) openInputsIfAsked(getIntent());
+        if (savedInstanceState == null && !openLauncherSettingsIfAsked(getIntent()) && !openInputsIfAsked(getIntent())) idleIfAsked(getIntent());
     }
 
     /**
@@ -1002,6 +1008,39 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         return true;
     }
 
+    /** idle_key: the idle screen now; asked again on it, Home comes back, as any key does. */
+    private boolean idleIfAsked(Intent intent) {
+        if (intent == null || !ACTION_IDLE_NOW.equals(intent.getAction())) return false;
+        setIntent(new Intent(Intent.ACTION_MAIN));
+        if (!resumedHome) {
+            idleOnResume = true;
+            idleAtOnce = stopped || !root.isLaidOut();
+            idleWakes = fadedAtPause && !stopped;
+        } else if (faded) {
+            unfade(250);
+            restartIdleClock();
+        } else {
+            goIdleWhenLaidOut(false);
+        }
+        return true;
+    }
+
+    private void goIdleWhenLaidOut(boolean atOnce) {
+        root.removeCallbacks(fadeHome);
+        if (root.isLaidOut()) {
+            goIdle(atOnce);
+            return;
+        }
+        // A cold start: wakeDistance needs the layout, and the first frame should already be the idle screen.
+        root.getViewTreeObserver().addOnGlobalLayoutListener(new ViewTreeObserver.OnGlobalLayoutListener() {
+            @Override
+            public void onGlobalLayout() {
+                root.getViewTreeObserver().removeOnGlobalLayoutListener(this);
+                if (resumedHome && !faded) goIdle(atOnce);
+            }
+        });
+    }
+
     private boolean openLauncherSettingsIfAsked(Intent intent) {
         if (intent == null || !ACTION_LAUNCHER_SETTINGS.equals(intent.getAction())) return false;
         setIntent(new Intent(Intent.ACTION_MAIN));
@@ -1019,6 +1058,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         super.onNewIntent(intent);
         if (openLauncherSettingsIfAsked(intent)) return;
         if (openInputsIfAsked(intent)) return;
+        if (idleIfAsked(intent)) return;
         if (intent == null || !intent.hasCategory(Intent.CATEGORY_HOME)) return;
         if (faded) unfade(250);
         restartIdleClock();
@@ -1092,6 +1132,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         restartIdleClock();
         resumedHome = true;
         updateSweep();
+        if (wakeMotion != null && !warmedUp) root.postDelayed(warmUpMotion, WARM_UP_MS);
         promptsPaused = false;
         if (keepWatching != null) refreshKeepWatching();
         if (grid.getAdapter() == null) grid.setAdapter(adapter);   // dropped by onTrimMemory
@@ -1109,6 +1150,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 break;
         }
         if (openLiveTvAfterBoot()) return;
+        if (idleOnResume) {
+            idleOnResume = false;
+            if (!idleWakes) goIdleWhenLaidOut(idleAtOnce);
+        }
         updateGreeting();
         updateRace();
         // The network and Inputs pills keep their state while Home is in the background, and callbacks update them
@@ -1311,6 +1356,21 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (dockGlass != null) dockGlass.sweep(resumedHome && !faded && !inWatchlist && !moreAppsOpen());
         // weather_scene keeps moving through the idle fade, more slowly, and stops in apps, More apps, the lineup and the deck.
         if (weatherScene != null) weatherScene.motion(resumedHome && !inWatchlist && !moreAppsOpen(), faded, !moreAppsOpen());
+    }
+
+    private void goIdle(boolean atOnce) {
+        if (inWatchlist) exitWatchlist(false);   // the screensaver fades Home itself, not the lineup over it
+        faded = true;
+        updateSweep();
+        if (wakeMotion == null) {
+            for (View v : fadingViews()) v.animate().alpha(0f).setDuration(atOnce ? 0 : saverFadeMs).start();
+        } else if (atOnce) {
+            if (!plainFocus) glass.setVisibility(View.INVISIBLE);
+            wakeMotion.away(wakeFades(), wakeDistance());
+        } else {
+            leaveWithMotion();
+        }
+        showSaver();
     }
 
     private void unfade(int ms) {
@@ -1546,6 +1606,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         updateSweep();
         root.removeCallbacks(showIdleClock);
         root.removeCallbacks(fadeHome);
+        root.removeCallbacks(warmUpMotion);
+        fadedAtPause = faded;
         if (faded) unfade(0);
         endReorder();   // Home or another app while reordering keeps the order so far
         wallpaperPlayer.stop();

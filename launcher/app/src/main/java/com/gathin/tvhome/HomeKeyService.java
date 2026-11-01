@@ -10,6 +10,8 @@ import android.content.IntentFilter;
 import android.os.UserManager;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
+import android.os.Handler;
+import android.os.Looper;
 import android.provider.Settings;
 import android.view.KeyEvent;
 import android.view.accessibility.AccessibilityEvent;
@@ -28,6 +30,8 @@ import java.util.Set;
  * With stock_home_redirect set, it also sends the stock launcher's home screen back here, for firmware that turns
  * that launcher on again after it was disabled (XGIMI's xrmservice does, on its own remote keys).
  *
+ * With idle_key on, quick presses of one button show the idle screen from anywhere; idle_key_only leaves every other key alone.
+ *
  * Enable over adb:
  *   settings put secure enabled_accessibility_services com.gathin.tvhome/.HomeKeyService
  *   settings put secure accessibility_enabled 1
@@ -45,6 +49,16 @@ public class HomeKeyService extends AccessibilityService {
     private Map<Integer, String> appScancodes = Collections.emptyMap();
     private Map<Integer, String> holdAppKeys = Collections.emptyMap();
     private Map<Integer, String> holdAppScancodes = Collections.emptyMap();
+    /** idle_key: the button's presses counted (null without the switch), and whether this service does nothing else. */
+    private IdleKey idleKey;
+    private int[] idleScancodes = new int[0];
+    private String idleKeyApp = "";
+    private boolean idleKeyOnly, idleEatsRelease;
+    private final Handler idleWait = new Handler(Looper.getMainLooper());
+    private final Runnable idleGaveUp = () -> {
+        idleKey.reset();
+        if (!idleKeyApp.isEmpty()) RemoteKeys.launch(this, idleKeyApp);
+    };
 
     /** Waits for the user to unlock when Android binds this service at boot; null once the config is read. */
     private BroadcastReceiver unlockReceiver;
@@ -87,6 +101,7 @@ public class HomeKeyService extends AccessibilityService {
     @Override
     public void onDestroy() {
         stopWaitingForUnlock();
+        idleWait.removeCallbacks(idleGaveUp);
         super.onDestroy();
     }
 
@@ -117,6 +132,39 @@ public class HomeKeyService extends AccessibilityService {
         }
         holdAppKeys = RemoteKeys.parseHoldAppKeys(config.appKeys);
         holdAppScancodes = RemoteKeys.parseHoldAppScancodes(config.appKeys);
+        idleKey = config.idleKey ? new IdleKey(config.idleKeyPresses) : null;
+        idleScancodes = config.idleKeyScancodes;
+        idleKeyApp = config.idleKeyApp;
+        idleKeyOnly = config.idleKeyOnly;
+    }
+
+    /**
+     * idle_key: the wanted number of quick presses shows the idle screen. With idle_key_app, this service keeps every press
+     * back, as nothing can send a key on from here, and a press that no other follows opens that app instead. Without it,
+     * the presses before the last go on to whatever else answers the button.
+     */
+    private boolean handleIdleKey(KeyEvent event) {
+        if (idleKey == null) return false;
+        boolean ours = false;
+        for (int code : idleScancodes) ours |= event.getScanCode() == code;
+        if (!ours) return false;
+        boolean keptBack = !idleKeyApp.isEmpty();
+        if (event.getAction() == KeyEvent.ACTION_UP) {
+            boolean eat = keptBack || idleEatsRelease;
+            idleEatsRelease = false;
+            return eat;
+        }
+        if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) {
+            idleWait.removeCallbacks(idleGaveUp);
+            if (idleKey.press(event.getEventTime())) {
+                idleEatsRelease = true;
+                startActivity(new Intent(this, MainActivity.class).setAction(MainActivity.ACTION_IDLE_NOW)
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+            } else {
+                idleWait.postDelayed(idleGaveUp, IdleKey.GAP_MS);
+            }
+        }
+        return keptBack || idleEatsRelease;
     }
 
     private boolean isSettingsKey(KeyEvent event) {
@@ -128,6 +176,8 @@ public class HomeKeyService extends AccessibilityService {
 
     @Override
     protected boolean onKeyEvent(KeyEvent event) {
+        if (handleIdleKey(event)) return true;
+        if (idleKey != null && idleKeyOnly) return false;
         // A scancode entry is more specific than any keycode, so it goes first.
         if (RemoteKeys.handle(this, event, appScancodes.get(event.getScanCode()),
                 holdAppScancodes.get(event.getScanCode()))) return true;

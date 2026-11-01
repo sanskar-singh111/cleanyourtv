@@ -595,6 +595,7 @@ tools/tv.py 'settings put secure screensaver_components com.gathin.tvhome/.Clock
   unprefixed app, holding for half a second opens the hold one (by keycode or `hold:scan:...`).
 - `HOME_KEY_SERVICE=1` also fixes sticks whose Home key sends ALL_APPS, and opens Settings from the remote's
   **gear** button, even one Android does not map (scancodes or keycodes in config.xml).
+- With `idle_key` the same helper shows the idle screen on a few quick presses of one remote button (`idle_key_scancodes`).
 - With `settings_key_panel` the gear opens a [small quick settings panel](docs/quick-settings-panel.jpg)
   over Home or any app: TV settings, Display, Network, Apps and Launcher settings.
 

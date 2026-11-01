@@ -541,6 +541,24 @@
     <bool name="wake_animation">false</bool>
     <!-- wake_animation's speed in percent, 50 to 200 (100, default, settles in about half a second): "wake_animation_speed". -->
     <integer name="wake_animation_speed">100</integer>
+    <!-- A remote button that shows the idle screen at once, from Home or from an app (false, default: nothing changes), when
+         pressed idle_key_presses times with at most 0.75 s between presses. Any key then brings Home back. Needs HOME_KEY_SERVICE=1
+         build-and-install.sh and a button in idle_key_scancodes: "idle_key". -->
+    <bool name="idle_key">false</bool>
+    <!-- The button's scancodes, as read with `tools/tv.py 'getevent -l'` (the EV_KEY code; Xiaomi's PatchWall button on the
+         MiTV-MOOQ3 is KEY_APPSELECT, 580): "idle_key_scancodes": [580]. -->
+    <integer-array name="idle_key_scancodes">
+    </integer-array>
+    <!-- How many presses, 2 to 5: "idle_key_presses". -->
+    <integer name="idle_key_presses">3</integer>
+    <!-- What fewer presses open, a package or "input:<input id>" as in app_keys (empty, default: fewer presses go on to
+         whatever answers the button, and the first ones of a full count do too). With a package no press reaches anything
+         else, which keeps the button's own screen from flashing up first, and it opens 0.75 s after the last press:
+         "idle_key_app". -->
+    <string name="idle_key_app" translatable="false" />
+    <!-- true: with idle_key on, HomeKeyService leaves every other key alone, for a TV that needs this service for nothing
+         else (false, default, it also takes the Home, Settings and app_keys buttons): "idle_key_only". -->
+    <bool name="idle_key_only">false</bool>
     <!-- The real weather on a scene wallpaper (empty, default, is the wallpaper as it is). A theme sets "weather_scene" with
          "weather_city" and "scene": an object of pictures and numbers made on a computer, which only fills in the launcher's
          layers: the sky, clouds, mist, haze, rain, snow and lightning for each kind of weather, and a copy of big_clock_glass
