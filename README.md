@@ -1,3 +1,23 @@
+## About this fork
+
+This is my personal fork of [CleanYourTV](https://github.com/Gathin23/cleanyourtv) by
+[Gathin23](https://github.com/Gathin23) and its contributors. The project and the credit for it are theirs, and the
+[LICENSE](LICENSE) is unchanged. Their README follows below.
+
+What I changed:
+
+- **Xiaomi MiTV-MOOQ3:** a tested list and config in [`examples/xiaomi-mitv-mooq3`](examples/xiaomi-mitv-mooq3).
+- **Launcher switches**, documented in [`docs/switches.md`](docs/switches.md): a big glass clock, layered scene
+  wallpapers with live weather, a glass dock, a Keep watching row, a watchlist of cut-out characters, a mood deck,
+  a More apps grid, an idle fade with a wake animation, and a theme's own fonts.
+- **[`tools/theme_sync.py`](tools/theme_sync.py):** a faster theme push that sends only the files that changed.
+- **[TV Studio](https://github.com/sanskar-singh111/tv-studio):** my Mac app for editing a theme and previewing it
+  before it goes to the TV.
+
+My own theme's settings and artwork stay on my Mac, so they aren't in this repository.
+
+---
+
 <p align="center">
   <a href="https://cleanyour.tv"><img src="https://raw.githubusercontent.com/Gathin23/cleanyourtv/main/docs/banner.png" alt="CleanYourTV. Your TV, minus the ads. Strip the bloatware from any Android TV or Google TV over Wi-Fi and replace the ad-filled home screen with a clean launcher that looks like an Apple TV. No root, no cable, nothing uninstalled, and a one-line restore." width="800"></a>
 </p>
