@@ -43,7 +43,15 @@ final class WeatherLooks {
     }
 
     final Map<String, Look> looks = new HashMap<>();
+    /** The theme's choice of looks: what to show instead of the look the weather asks for. TV Studio works this out. */
+    final Map<String, String> use = new HashMap<>();
     File mist, haze, edge, trees, streak;
+
+    /** The look to show for the look the weather asks for. */
+    String shown(String real) {
+        String to = use.get(real);
+        return to != null && (CLEAR.equals(to) || looks.containsKey(to)) ? to : real;
+    }
 
     /** The look's id for a WMO weather code as Open-Meteo reports it, with visibility in metres and PM2.5, each -1 when not known. */
     static String look(int code, int metres, float pm25) {
@@ -98,6 +106,13 @@ final class WeatherLooks {
             l.snow = Math.max(0, Math.min(WeatherSky.MAX_SNOW, o.optInt("snow", 0)));
             l.flash = percent(o, "flash", 0);
             out.looks.put(id, l);
+        }
+        JSONObject use = json.optJSONObject("use");
+        if (use != null) {
+            for (Iterator<String> ids = use.keys(); ids.hasNext(); ) {
+                String id = ids.next();
+                out.use.put(id, use.optString(id));
+            }
         }
         return out.looks.isEmpty() ? null : out;
     }

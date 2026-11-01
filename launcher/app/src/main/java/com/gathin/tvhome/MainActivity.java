@@ -2572,6 +2572,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (scene != null && cfg.weatherScene != null) {
             weatherScene = new WeatherScene(this, root, scene, cfg.weatherScene, new WeatherScene.Glass() {
                 @Override public void show(WeatherLooks.Look look) {
+                    bigClock.hazy(WeatherLooks.HAZE.equals(look.id));
                     bigClock.glass(look.clock != null ? look.clock : cfg.bigClockGlass);
                     if (dockGlass != null) dockGlass.glass(look.strip != null ? look.strip : cfg.glassStrip, look.rim != null ? look.rim : cfg.glassRim);
                 }

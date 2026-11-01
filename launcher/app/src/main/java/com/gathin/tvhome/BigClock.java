@@ -41,6 +41,8 @@ final class BigClock {
     private final LinearLayout weather;
     private final WeatherIcon icon = new WeatherIcon();
     private final TextView weatherText;
+    private Weather.Reading reading;
+    private boolean hazy;
 
     BigClock(Context context, int sizePercent, int topPercent, int opacityPercent, Typeface regular, Typeface digitsFont, File glass, int shine) {
         float density = context.getResources().getDisplayMetrics().density;
@@ -149,13 +151,21 @@ final class BigClock {
 
     /** The weather on the line, or (null) the date alone. */
     void show(Weather.Reading reading) {
+        this.reading = reading;
         if (reading == null) {
             weather.setVisibility(View.GONE);
             return;
         }
-        icon.setKind(reading.icon);
-        weatherText.setText(line(reading.celsius, Weather.condition(reading.code)));
+        icon.setKind(hazy ? WeatherIcon.HAZE : reading.icon);
+        weatherText.setText(line(reading.celsius, hazy ? Weather.HAZY : Weather.condition(reading.code)));
         weather.setVisibility(View.VISIBLE);
+    }
+
+    /** weather_scene: whether the picture is the haze look, which the line says instead of the sky's condition. */
+    void hazy(boolean hazy) {
+        if (this.hazy == hazy) return;
+        this.hazy = hazy;
+        show(reading);
     }
 
     /** "28° Mostly clear", or "28°" when the condition isn't known. */

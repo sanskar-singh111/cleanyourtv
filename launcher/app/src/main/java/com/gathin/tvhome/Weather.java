@@ -55,6 +55,9 @@ final class Weather {
         }
     }
 
+    /** The line's word when the picture is the haze look: no weather code says it, it comes from visibility or PM2.5. */
+    static final String HAZY = "Hazy";
+
     /** The condition in words for a WMO weather code as Open-Meteo reports it; empty when it isn't known. */
     static String condition(int code) {
         if (code == 0) return "Clear";

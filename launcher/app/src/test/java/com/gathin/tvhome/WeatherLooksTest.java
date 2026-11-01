@@ -43,6 +43,19 @@ public class WeatherLooksTest {
     }
 
     @Test
+    public void theThemeChoosesWhatShows() {
+        WeatherLooks w = new WeatherLooks();
+        w.looks.put(WeatherLooks.RAIN, new WeatherLooks.Look(WeatherLooks.RAIN));
+        w.use.put(WeatherLooks.STORM, WeatherLooks.RAIN);
+        w.use.put(WeatherLooks.RAIN, WeatherLooks.CLEAR);
+        w.use.put(WeatherLooks.SNOW, "nothing");
+        assertEquals(WeatherLooks.RAIN, w.shown(WeatherLooks.STORM));
+        assertEquals(WeatherLooks.CLEAR, w.shown(WeatherLooks.RAIN));
+        assertEquals(WeatherLooks.HAZE, w.shown(WeatherLooks.HAZE));
+        assertEquals(WeatherLooks.SNOW, w.shown(WeatherLooks.SNOW));
+    }
+
+    @Test
     public void somethingFallingStaysOnItsWayAndComesRound() {
         assertEquals(10f, WeatherSky.fall(0.1f, 0, 99, 100), 0.001f);
         assertEquals(30f, WeatherSky.fall(0.1f, 20, 1, 100), 0.001f);

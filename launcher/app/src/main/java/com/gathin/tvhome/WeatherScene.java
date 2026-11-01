@@ -164,7 +164,7 @@ final class WeatherScene implements Choreographer.FrameCallback {
     }
 
     private void choose() {
-        String look = test != null ? test : real;
+        String look = test != null ? test : looks.shown(real);
         if (look.equals(wanted)) return;
         wanted = look;
         Log.i(TAG, "look " + look);

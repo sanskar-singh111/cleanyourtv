@@ -11,11 +11,11 @@ import android.graphics.drawable.Drawable;
 
 /**
  * The weather beside the clock as a thin white outline, drawn in code like the festive drawables: sun, moon, a cloud,
- * and the cloud with rain, snow or a bolt, or fog lines. Strokes scale with the bounds, so one size fits any text.
+ * and the cloud with rain, snow or a bolt, or fog lines, or haze's wavy ones. Strokes scale with the bounds, so one size fits any text.
  */
 final class WeatherIcon extends Drawable {
     static final int CLEAR_DAY = 0, CLEAR_NIGHT = 1, PARTLY_DAY = 2, PARTLY_NIGHT = 3, CLOUDY = 4, FOG = 5, RAIN = 6,
-            SNOW = 7, STORM = 8;
+            SNOW = 7, STORM = 8, HAZE = 9;
 
     /** The icon for a WMO weather code as Open-Meteo reports it (0 clear ... 99 thunderstorm with hail). */
     static int forCode(int code, boolean day) {
@@ -69,6 +69,16 @@ final class WeatherIcon extends Drawable {
                 for (int i = 0; i < 3; i++) {
                     float y = s * (0.32f + i * 0.18f), inset = i == 1 ? 0.1f : 0.18f;
                     canvas.drawLine(s * inset, y, s * (1 - inset), y, paint);
+                }
+                break;
+            case HAZE:
+                // Wavy where fog's lines are straight; no sun or moon, as the air hides both.
+                for (int i = 0; i < 3; i++) {
+                    float y = s * (0.32f + i * 0.18f), inset = i == 1 ? 0.1f : 0.18f, wide = s * (1 - 2 * inset), bend = s * 0.07f;
+                    path.reset();
+                    path.moveTo(s * inset, y);
+                    path.cubicTo(s * inset + wide / 3, y - bend * 2, s * inset + wide * 2 / 3, y + bend * 2, s * (1 - inset), y);
+                    canvas.drawPath(path, paint);
                 }
                 break;
             case RAIN:
