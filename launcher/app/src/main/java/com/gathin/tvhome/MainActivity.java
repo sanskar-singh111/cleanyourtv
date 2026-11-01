@@ -1328,7 +1328,6 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         // No picture of the whole dock on the way: its tiles barely touch, so each draws at the fading alpha by itself.
         grid.forceHasOverlappingRendering(false);
         if (keepWatching != null) keepWatching.forceHasOverlappingRendering(false);
-        if (bigClock != null) bigClock.view.forceHasOverlappingRendering(false);
         wakeMotion = new WakeMotion((alpha, y) -> {
             grid.setAlpha(alpha);
             grid.setTranslationY(y);
@@ -1345,11 +1344,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         });
     }
 
-    /** Fades with the motion and doesn't move: the top bar, the clock, and the line above the dock with its glow. */
+    /** Fades with the motion and doesn't move: the top bar and the line above the dock with its glow. big_clock stays. */
     private List<View> wakeFades() {
         List<View> views = new ArrayList<>();
         views.add(((ViewGroup) homeContent()).getChildAt(0));
-        if (bigClock != null && !moreAppsOpen()) views.add(bigClock.view);
         if (moreGrid != null) views.add(moreGrid);
         if (heroShown) {
             views.add(hero);

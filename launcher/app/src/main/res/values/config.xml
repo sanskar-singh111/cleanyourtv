@@ -536,8 +536,8 @@
          so a new font needs no build. A place whose file is missing or broken keeps the font it would have had. -->
     <string name="fonts" translatable="false" />
     <!-- How Home wakes from the idle fade (false, default: a plain fade). true: the dock rises from below the screen on a
-         spring, fading in, the Keep watching row a moment after it, and the clock and its line fade in; on idle they all leave
-         the same way, the clock too. Needs idle_fade_minutes: "wake_animation". -->
+         spring, fading in, the Keep watching row a moment after it; on idle they leave the same way, and big_clock stays on
+         screen throughout. Needs idle_fade_minutes: "wake_animation". -->
     <bool name="wake_animation">false</bool>
     <!-- wake_animation's speed in percent, 50 to 200 (100, default, settles in about half a second): "wake_animation_speed". -->
     <integer name="wake_animation_speed">100</integer>

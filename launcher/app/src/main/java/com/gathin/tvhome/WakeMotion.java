@@ -8,8 +8,8 @@ import java.util.List;
 
 /**
  * wake_animation: how Home comes back from the idle fade, and how it leaves. The dock rises from below the screen on a spring
- * with a little overshoot, fading in as it comes, the Keep watching row a moment after it, and the clock and the rest fade in;
- * leaving is the same, downwards, the row first. Everything runs from one clock, and a frame only sets a translation and an
+ * with a little overshoot, fading in as it comes, the Keep watching row a moment after it, and what sits above them fades in;
+ * leaving is the same, downwards, the row first. The big clock stays through it all. Everything runs from one clock, and a frame only sets a translation and an
  * alpha: nothing is drawn again. Nothing here runs without the switch.
  */
 final class WakeMotion implements Choreographer.FrameCallback {
