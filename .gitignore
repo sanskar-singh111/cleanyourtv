@@ -40,3 +40,13 @@ themes/sanskar/**/*.webp
 !themes/sanskar/screenshot.jpg
 # The TV screenshots of that theme that used to illustrate docs/switches.md are in work/switch-shots-tv/ (ignored);
 # docs/switches.md shows stand-ins from the preview emulator instead.
+
+# Private files that must never reach the public repository.
+.env
+.env.*
+adbkey
+adbkey.pub
+tmdb-auth.json
+/data/
+themes/sanskar/config.json
+themes/sanskar/effects.json
