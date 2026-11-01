@@ -17,6 +17,7 @@ public class ThemeFilesTest {
         assertEquals("theme_revision", ThemeFiles.path(Collections.singletonList("theme_revision")));
         assertEquals("wallpaper.png", ThemeFiles.path(Collections.singletonList("wallpaper.png")));
         assertEquals("watchlist_removed.json", ThemeFiles.path(Collections.singletonList("watchlist_removed.json")));
+        assertEquals("memory_care.json", ThemeFiles.path(Collections.singletonList("memory_care.json")));
     }
 
     @Test public void aThemesOwnPictureFoldersAreAllowed() {

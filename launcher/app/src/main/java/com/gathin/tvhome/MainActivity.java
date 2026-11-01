@@ -128,7 +128,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     /** Home has faded: the next key only brings it back. The key whose press woke it, so its release is eaten too. */
     private boolean faded;
     /** Between onResume and onPause. */
-    private boolean resumedHome;
+    private volatile boolean resumedHome;
     private int wakeKey = KeyEvent.KEYCODE_UNKNOWN;
     /** screensaver: what the faded Home shows (Screensaver), its dim, fade, slides and their pictures. */
     private String saverMode = Screensaver.WALLPAPER;
@@ -163,8 +163,11 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     };
     /** idle_key asked while Home wasn't resumed: onResume does it, at once if Home was covered by an app. */
     private boolean idleOnResume, idleAtOnce;
-    /** Android may pause Home around onNewIntent, which unfades it, so a second ask on the idle screen is told by this. */
-    private boolean fadedAtPause, idleWakes;
+    /** Home paused on the idle screen comes back at once, unless onNewIntent was on its way and wakes it. */
+    private final Runnable unfadeAfterPause = () -> unfade(0);
+    /** Home came back from behind an app: MemoryCare looks at the memory once it has settled. */
+    private boolean memoryCareDue;
+    private final Runnable memoryCare = () -> MemoryCare.start(this, () -> resumedHome);
     private String liveTvAction;
     private String liveTvInputId;
     /** The app library is on (config.xml, app_library): only then can the tile menu take an app off Home. */
@@ -1012,13 +1015,12 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private boolean idleIfAsked(Intent intent) {
         if (intent == null || !ACTION_IDLE_NOW.equals(intent.getAction())) return false;
         setIntent(new Intent(Intent.ACTION_MAIN));
-        if (!resumedHome) {
-            idleOnResume = true;
-            idleAtOnce = stopped || !root.isLaidOut();
-            idleWakes = fadedAtPause && !stopped;
-        } else if (faded) {
+        if (faded) {
             unfade(250);
             restartIdleClock();
+        } else if (!resumedHome) {
+            idleOnResume = true;
+            idleAtOnce = stopped || !root.isLaidOut();
         } else {
             goIdleWhenLaidOut(false);
         }
@@ -1060,7 +1062,12 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (openInputsIfAsked(intent)) return;
         if (idleIfAsked(intent)) return;
         if (intent == null || !intent.hasCategory(Intent.CATEGORY_HOME)) return;
-        if (faded) unfade(250);
+        if (faded) {
+            // On the idle screen Home is any other key: it brings Home back, from where the dock stands, and the focus stays.
+            unfade(250);
+            restartIdleClock();
+            return;
+        }
         restartIdleClock();
         if (inWatchlist) {
             // Home always comes back to the dock: scrolling up on the lineup, at once on the way back from an app.
@@ -1089,6 +1096,12 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             // so only go back to the first one; rebuilding would replay the entrance animation for nothing.
             grid.post(() -> focusTile(0));
         }
+    }
+
+    @Override
+    protected void onRestart() {
+        super.onRestart();
+        memoryCareDue = true;
     }
 
     @Override
@@ -1152,7 +1165,11 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (openLiveTvAfterBoot()) return;
         if (idleOnResume) {
             idleOnResume = false;
-            if (!idleWakes) goIdleWhenLaidOut(idleAtOnce);
+            goIdleWhenLaidOut(idleAtOnce);
+        }
+        if (memoryCareDue) {
+            memoryCareDue = false;
+            root.postDelayed(memoryCare, MemoryCare.DELAY_MS);
         }
         updateGreeting();
         updateRace();
@@ -1374,6 +1391,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     }
 
     private void unfade(int ms) {
+        root.removeCallbacks(unfadeAfterPause);
         faded = false;
         updateSweep();
         if (wakeMotion == null) for (View v : fadingViews()) v.animate().alpha(1f).setDuration(ms).start();
@@ -1607,8 +1625,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         root.removeCallbacks(showIdleClock);
         root.removeCallbacks(fadeHome);
         root.removeCallbacks(warmUpMotion);
-        fadedAtPause = faded;
-        if (faded) unfade(0);
+        root.removeCallbacks(memoryCare);
+        // Android pauses Home around onNewIntent in one go, so a Home press on the idle screen gets there first, and wakes it.
+        if (faded) root.post(unfadeAfterPause);
         endReorder();   // Home or another app while reordering keeps the order so far
         wallpaperPlayer.stop();
         if (weather != null) weather.pause();
@@ -1629,6 +1648,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     @Override
     protected void onStop() {
         super.onStop();
+        if (faded) unfade(0);
         started = false;
         unregisterReceiver(timeReceiver);
         handler.removeCallbacks(clockCheck);
@@ -1676,6 +1696,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        root.removeCallbacks(unfadeAfterPause);
+        root.removeCallbacks(memoryCare);
         unregisterReceiver(packageReceiver);
         wallpaperPlayer.close();
         if (scene != null) scene.close();

@@ -593,6 +593,10 @@ tools/tv.py 'settings put secure screensaver_components com.gathin.tvhome/.Clock
   (`app_keys` and `input_key_keycodes`, in config.xml or a theme; `HOME_KEY_SERVICE=1` reads `app_keys` too).
 - A `hold:` prefix on an `app_keys` entry gives that button a second app: a normal press opens the
   unprefixed app, holding for half a second opens the hold one (by keycode or `hold:scan:...`).
+- `MEMORY_CARE=1` grants what auto memory care needs to read what's running and playing (`DUMP`, `PACKAGE_USAGE_STATS`). A tool
+  turns it on by writing `memory_care.json` into the theme folder (`{"on":true,"limit_mb":250,"keep":["com.netflix.ninja"]}`);
+  with no file nothing runs. When Home comes back under the limit, the launcher clears background apps that aren't playing, and
+  writes what it did to `memory_care_log.json`.
 - `HOME_KEY_SERVICE=1` also fixes sticks whose Home key sends ALL_APPS, and opens Settings from the remote's
   **gear** button, even one Android does not map (scancodes or keycodes in config.xml).
 - With `idle_key` the same helper shows the idle screen on a few quick presses of one remote button (`idle_key_scancodes`).

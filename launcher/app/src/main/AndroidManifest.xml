@@ -21,6 +21,13 @@
          list (ServiceRepair). Granted with pm grant by build-and-install when a helper is enabled. -->
     <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS"
         tools:ignore="ProtectedPermissions" />
+    <!-- Auto memory care (MemoryCare): clears background apps, a normal permission. It reads dumpsys to see what's running and
+         playing, as a launcher can't ask Android; build-and-install grants the other two when MEMORY_CARE=1. -->
+    <uses-permission android:name="android.permission.KILL_BACKGROUND_PROCESSES" />
+    <uses-permission android:name="android.permission.DUMP"
+        tools:ignore="ProtectedPermissions" />
+    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS"
+        tools:ignore="ProtectedPermissions" />
     <!-- keep_watching reads Android TV's Watch Next. A runtime permission, granted with pm grant by build-and-install,
          so nothing asks on the TV. -->
     <uses-permission android:name="android.permission.READ_TV_LISTINGS" />

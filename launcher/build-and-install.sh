@@ -202,4 +202,8 @@ if [ "${HOME_KEY_SERVICE:-0}" = 1 ]; then enable_service HomeKeyService; fi
 if [ "${RESTORE_KEY_SERVICES:-0}" = 1 ]; then
   "$PY" -I ../tools/tv.py "pm grant com.gathin.tvhome android.permission.WRITE_SECURE_SETTINGS && echo restore-granted"
 fi
+# Auto memory care reads what's running and playing from dumpsys. Off unless asked for: without the grant it clears nothing.
+if [ "${MEMORY_CARE:-0}" = 1 ]; then
+  "$PY" -I ../tools/tv.py "pm grant com.gathin.tvhome android.permission.DUMP && pm grant com.gathin.tvhome android.permission.PACKAGE_USAGE_STATS && cmd appops set com.gathin.tvhome GET_USAGE_STATS allow && echo memory-care-granted"
+fi
 echo "Installed. Press Home on the remote to see it."
