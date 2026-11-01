@@ -14,6 +14,7 @@ import android.graphics.Color;
 import android.graphics.Outline;
 import android.graphics.PixelFormat;
 import android.graphics.Rect;
+import android.graphics.Typeface;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
@@ -217,6 +218,8 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     private final boolean showHomeSettings;
     /** Calmer motion for weak GPUs (config.xml, reduced_motion): no overshoot, shorter fades. */
     private final boolean reducedMotion;
+    /** fonts: the theme's font for the names on the tiles; null keeps the layout's. */
+    private final Typeface labelFont;
     /** The focus zoom may overshoot (config.xml, focus_overshoot). */
     private final boolean focusOvershoot;
     /** plain_focus: no names under the tiles, and focus is a short eased grow with no overshoot. */
@@ -268,6 +271,7 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         this.moreApps = cfg.moreApps;
         this.moreAppsNames = cfg.moreAppsNames;
         this.reducedMotion = cfg.reducedMotion;
+        labelFont = cfg.fonts.get(ctx, ThemeFonts.LABELS, null);
         this.focusOvershoot = cfg.focusOvershoot;
         this.plainFocus = cfg.plainFocus;
         this.growScale = 1f + cfg.focusGrow / 100f;
@@ -497,6 +501,10 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             v.setPadding(v.getPaddingLeft(), pad, v.getPaddingRight(), pad);
         }
         name.setLayoutParams(nameLp);
+        if (labelFont != null) {
+            ((TextView) name).setTypeface(labelFont);
+            ((TextView) v.findViewById(R.id.label)).setTypeface(labelFont);
+        }
         Holder holder = new Holder(v, listener, animations, advancedEffects, reducedMotion, restNameAlpha, focusOvershoot, plainFocus,
                 icons ? ICON_GROW : growScale, growMs);
         if (icons) addGlow(holder, (ViewGroup) v, w);

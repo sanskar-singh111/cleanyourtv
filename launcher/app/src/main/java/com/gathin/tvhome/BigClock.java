@@ -1,6 +1,8 @@
 package com.gathin.tvhome;
 
 import android.content.Context;
+import android.graphics.Paint;
+import android.graphics.Rect;
 import android.graphics.Typeface;
 import android.util.TypedValue;
 import android.view.Gravity;
@@ -44,7 +46,8 @@ final class BigClock {
     private Weather.Reading reading;
     private boolean hazy;
 
-    BigClock(Context context, int sizePercent, int topPercent, int opacityPercent, Typeface regular, Typeface digitsFont, File glass, int shine) {
+    /** `ownDigits`: digitsFont is the theme's own, so the digits' share of the text size is measured from it. */
+    BigClock(Context context, int sizePercent, int topPercent, int opacityPercent, Typeface regular, Typeface digitsFont, boolean ownDigits, File glass, int shine) {
         float density = context.getResources().getDisplayMetrics().density;
         int screenH = context.getResources().getDisplayMetrics().heightPixels;
         view = new FrameLayout(context);
@@ -56,7 +59,8 @@ final class BigClock {
         glassPicture = glass;
         this.opacityPercent = opacityPercent;
         this.shine = shine;
-        textSize = screenH * sizePercent / 100f / DIGIT_SHARE;
+        float digitShare = ownDigits ? digitShare(digitsFont) : DIGIT_SHARE;
+        textSize = screenH * sizePercent / 100f / digitShare;
         glassDigits = glass == null ? null : new GlassDigits(context, shine, DIGITS_SHADOW, DIGITS_SHADOW_DP);
         TextClock digits = glassDigits != null ? glassDigits : new TextClock(context);
         style(digits, density);
@@ -64,7 +68,7 @@ final class BigClock {
                 ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.CENTER_HORIZONTAL);
         // The digits' top, not the view's: above them the view keeps the font's whole ascent.
         float digitsTop = topPercent / 100f;
-        dlp.topMargin = Math.round(screenH * digitsTop + digits.getPaint().getFontMetrics().ascent + textSize * DIGIT_SHARE);
+        dlp.topMargin = Math.round(screenH * digitsTop + digits.getPaint().getFontMetrics().ascent + textSize * digitShare);
         view.addView(digits, dlp);
         if (glassDigits != null) glassDigits.load(glass, opacityPercent);
 
@@ -95,6 +99,16 @@ final class BigClock {
                 ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.CENTER_HORIZONTAL);
         llp.topMargin = Math.round(screenH * (digitsTop - LINE_ABOVE));
         view.addView(line, llp);
+    }
+
+    /** How tall this font's digits are as a share of its text size, so big_clock_size means the same in any font. */
+    private static float digitShare(Typeface font) {
+        Paint paint = new Paint();
+        paint.setTypeface(font);
+        paint.setTextSize(1000);
+        Rect digit = new Rect();
+        paint.getTextBounds("0", 0, 1, digit);
+        return digit.height() >= 200 ? digit.height() / 1000f : DIGIT_SHARE;
     }
 
     private void style(TextClock digits, float density) {

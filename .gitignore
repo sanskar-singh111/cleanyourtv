@@ -28,6 +28,10 @@ themes/sanskar/watchlist/
 themes/sanskar/moods/
 themes/sanskar/screensaver/
 themes/sanskar/screenshot-tv.jpg
+# His own font files stay here too, in any theme.
+themes/*/fonts/
+themes/**/*.ttf
+themes/**/*.otf
 themes/sanskar/**/*.png
 themes/sanskar/**/*.jpg
 themes/sanskar/**/*.jpeg

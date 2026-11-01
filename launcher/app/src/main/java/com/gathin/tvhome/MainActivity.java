@@ -27,6 +27,7 @@ import android.graphics.PixelFormat;
 import android.graphics.RadialGradient;
 import android.graphics.Rect;
 import android.graphics.Shader;
+import android.graphics.Typeface;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
@@ -154,7 +155,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (this.inWatchlist) exitWatchlist(false);   // the screensaver fades Home itself, not the lineup over it
         faded = true;
         updateSweep();
-        for (View v : fadingViews()) v.animate().alpha(0f).setDuration(saverFadeMs).start();
+        if (this.wakeMotion != null) leaveWithMotion();
+        else for (View v : fadingViews()) v.animate().alpha(0f).setDuration(saverFadeMs).start();
         showSaver();
     };
     private String liveTvAction;
@@ -198,6 +200,11 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private DockGlass dockGlass;
     /** weather_scene (null when off), and Test weather: `am broadcast -a com.gathin.tvhome.WEATHER_TEST --es look rain --ei seconds 300`. */
     private WeatherScene weatherScene;
+    /** wake_animation (null when off, and with animations or reduced_motion saying no). */
+    private WakeMotion wakeMotion;
+    /** fonts: the theme's font for labels (null keeps each label's own), and what the fonts key says. */
+    private Typeface labelsFont;
+    private ThemeFonts themeFonts;
     private final BroadcastReceiver weatherTest = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
@@ -510,7 +517,14 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         wallpaperPlayer = new WallpaperPlayer(this, root, cfg);
         sky = findViewById(R.id.sky);
         sky.setIntensity(cfg.skyIntensity);
-        if (cfg.bigClock) bigClock = new BigClock(this, cfg.bigClockSize, cfg.bigClockTop, cfg.bigClockOpacity, UiFont.get(this, R.string.font_inter_regular), UiFont.get(this, R.string.font_clock), cfg.bigClockGlass, cfg.glassShine);
+        themeFonts = cfg.fonts;
+        labelsFont = themeFonts.get(this, ThemeFonts.LABELS, null);
+        if (cfg.bigClock) {
+            bigClock = new BigClock(this, cfg.bigClockSize, cfg.bigClockTop, cfg.bigClockOpacity,
+                    themeFonts.get(this, ThemeFonts.LINE, UiFont.get(this, R.string.font_inter_regular)),
+                    themeFonts.get(this, ThemeFonts.CLOCK, UiFont.get(this, R.string.font_clock)), themeFonts.has(this, ThemeFonts.CLOCK),
+                    cfg.bigClockGlass, cfg.glassShine);
+        }
         if (!cfg.scene.isEmpty()) {
             scene = new SceneLayers(this, root, root.indexOfChild(sky), bigClock == null ? null : bigClock.view, cfg.scene);
         } else if (bigClock != null) {
@@ -710,6 +724,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         grid.setAdapter(adapter);
         if (cfg.moreApps) setUpMoreApps(cfg);
         if (cfg.keepWatching) setUpKeepWatching(cfg);
+        if (!themeFonts.isEmpty()) useThemeFonts();
+        if (cfg.wakeAnimation && animations && !reducedMotion) setUpWakeMotion(cfg);
 
         // tvOS layout: push the dock row towards the bottom of the screen, leaving room for
         // rows_below_dock grid rows under it; the rest of the grid stays below until you press Down.
@@ -1300,8 +1316,77 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private void unfade(int ms) {
         faded = false;
         updateSweep();
-        for (View v : fadingViews()) v.animate().alpha(1f).setDuration(ms).start();
+        if (wakeMotion == null) for (View v : fadingViews()) v.animate().alpha(1f).setDuration(ms).start();
+        else if (ms == 0) wakeMotion.jump(wakeFades(), wakeDistance());
+        else wakeMotion.come(wakeFades(), wakeDistance());
         hideSaver(ms);
+    }
+
+    // ---- wake_animation ---------------------------------------------------------------------------
+
+    private void setUpWakeMotion(Config cfg) {
+        // No picture of the whole dock on the way: its tiles barely touch, so each draws at the fading alpha by itself.
+        grid.forceHasOverlappingRendering(false);
+        if (keepWatching != null) keepWatching.forceHasOverlappingRendering(false);
+        if (bigClock != null) bigClock.view.forceHasOverlappingRendering(false);
+        wakeMotion = new WakeMotion((alpha, y) -> {
+            grid.setAlpha(alpha);
+            grid.setTranslationY(y);
+            if (dockGlass != null) dockGlass.wake(alpha, y);
+        }, keepWatching == null ? null : (alpha, y) -> {
+            keepWatching.setAlpha(alpha);
+            keepWatching.setTranslationY(y);
+        }, cfg.wakeAnimationSpeed, () -> {
+            // The floating highlight is placed by the focused tile, which has only now stopped moving.
+            if (!plainFocus) {
+                glass.setVisibility(View.VISIBLE);
+                refitGlass();
+            }
+        });
+    }
+
+    /** Fades with the motion and doesn't move: the top bar, the clock, and the line above the dock with its glow. */
+    private List<View> wakeFades() {
+        List<View> views = new ArrayList<>();
+        views.add(((ViewGroup) homeContent()).getChildAt(0));
+        if (bigClock != null && !moreAppsOpen()) views.add(bigClock.view);
+        if (moreGrid != null) views.add(moreGrid);
+        if (heroShown) {
+            views.add(hero);
+            if (ambientGlow) views.add(ambient);
+        }
+        return views;
+    }
+
+    /** From the dock's top to just below the screen, its panel's top edge and shadow included. */
+    private float wakeDistance() {
+        Rect dock = new Rect(0, grid.getPaddingTop(), 0, grid.getPaddingTop());
+        root.offsetDescendantRectToMyCoords(grid, dock);
+        return root.getHeight() - dock.top + 40 * density;
+    }
+
+    private void leaveWithMotion() {
+        if (!plainFocus) glass.setVisibility(View.INVISIBLE);
+        wakeMotion.leave(wakeFades(), wakeDistance());
+    }
+
+    // ---- fonts --------------------------------------------------------------------------------------
+
+    /** fonts: the views in the layout. The ones built in code ask for theirs where they are built. */
+    private void useThemeFonts() {
+        Typeface clock = themeFonts.get(this, ThemeFonts.CLOCK, null), line = themeFonts.get(this, ThemeFonts.LINE, null),
+                tagline = themeFonts.get(this, ThemeFonts.TAGLINES, null);
+        if (clock != null) {
+            ((TextView) findViewById(R.id.clock)).setTypeface(clock);
+            ((TextView) findViewById(R.id.ampm)).setTypeface(clock);
+        }
+        if (line != null) ((TextView) findViewById(R.id.date)).setTypeface(line);
+        if (tagline != null) heroName.setTypeface(tagline);
+    }
+
+    /** A label's font: the theme's if it has one, else `fontString`. */
+    private Typeface labelFont(int fontString) {
+        return labelsFont != null ? labelsFont : UiFont.get(this, fontString);
     }
 
     // ---- screensaver ------------------------------------------------------------------------------
@@ -1363,7 +1448,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             clock.setIncludeFontPadding(false);
             clock.setMaxLines(1);
             try {
-                clock.setTypeface(UiFont.get(this, R.string.font_light));
+                clock.setTypeface(themeFonts.get(this, ThemeFonts.CLOCK, UiFont.get(this, R.string.font_light)));
             } catch (Exception ignored) {
                 // the system font is fine
             }
@@ -2535,7 +2620,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         weatherText.setTextSize(TypedValue.COMPLEX_UNIT_SP, 24f);
         weatherText.setIncludeFontPadding(false);
         try {
-            weatherText.setTypeface(UiFont.get(this, R.string.font_light));
+            weatherText.setTypeface(themeFonts.get(this, ThemeFonts.LINE, UiFont.get(this, R.string.font_light)));
         } catch (Exception ignored) {
             // the system font is fine
         }
@@ -2602,8 +2687,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     /** keep_watching: the row sits in the same frame as the dock, so it fades and hides with it. */
     private void setUpKeepWatching(Config cfg) {
         keepWatchingLabels = cfg.appLabels;
-        keepWatching = new KeepWatchingView(this, cfg.keepWatchingHeading, cfg.dockCentered, UiFont.get(this, R.string.font_inter_regular),
-                UiFont.get(this, R.string.font_inter_medium), cfg.focusGrowMs, new KeepWatchingView.Listener() {
+        keepWatching = new KeepWatchingView(this, cfg.keepWatchingHeading, cfg.dockCentered, labelFont(R.string.font_inter_regular),
+                labelFont(R.string.font_inter_medium), cfg.focusGrowMs, new KeepWatchingView.Listener() {
             @Override public void onKeepWatchingUp() { if (topButtonsShown) firstShownTopButton().requestFocus(); }
             @Override public void onKeepWatchingDown() { focusTile(lastFocused); }
             @Override public void onKeepWatchingOpen(KeepWatching.Item item) { openWatchNext(item); }
@@ -2946,7 +3031,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (cfg.watchlistRemove || cfg.moodWatched) watchlistHidden.addAll(WatchlistRemovals.load(this, Config.dir(this)));
         List<Watchlist.Item> items = WatchlistRemovals.without(cfg.watchlistItems, i -> i.key, watchlistHidden);
         WatchlistView view = new WatchlistView(this, items, cfg.dockLogos, cfg.watchlistHeading,
-                UiFont.get(this, R.string.font_light), UiFont.get(this, R.string.font_medium), cfg.watchlistEffects,
+                labelFont(R.string.font_light), labelFont(R.string.font_medium), cfg.watchlistEffects,
                 cfg.watchlistRemove ? cfg.watchlistRemoveHoldMs : 0, new WatchlistView.Listener() {
             @Override public void onWatchlistExit() { exitWatchlist(true); }
             @Override public void onWatchlistOpen(Watchlist.Item item) {
@@ -2969,7 +3054,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 : WatchlistRemovals.without(cfg.moodDeckMoods, cfg.moodDeckTitles, watchlistHidden);
         if (moods.isEmpty()) return;
         MoodDeckView deck = new MoodDeckView(this, cfg.moodDeckTitles, moods, cfg.moodDeckHeading,
-                UiFont.get(this, R.string.font_light), UiFont.get(this, R.string.font_medium), cfg.moodPosters,
+                labelFont(R.string.font_light), labelFont(R.string.font_medium), cfg.moodPosters,
                 new MoodDeckView.Listener() {
             @Override public void onDeckUp() { exitDeck(); }
             @Override public void onDeckOpen(MoodDeck.Title t) { openTitle(t.packageName, t.uri, t.component, t.flags, t.extras); }
@@ -2981,7 +3066,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         deck.setVisibility(View.INVISIBLE);
         if (cfg.moodPosters && moodShelfView == null) {
             MoodShelfView shelf = new MoodShelfView(this, cfg.moodDeckTitles, cfg.moodPostersHeading,
-                    UiFont.get(this, R.string.font_light), UiFont.get(this, R.string.font_medium),
+                    labelFont(R.string.font_light), labelFont(R.string.font_medium),
                     cfg.moodWatched ? cfg.watchlistRemoveHoldMs : 0, cfg.moodSurpriseReel, new MoodShelfView.Listener() {
                 @Override public void onShelfBack() { exitShelf(true); }
                 @Override public void onShelfOpen(MoodDeck.Title t) { openTitle(t.packageName, t.uri, t.component, t.flags, t.extras); }

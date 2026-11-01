@@ -14,6 +14,9 @@ final class ThemeFiles {
      * letters, digits, - and _, so never "..", a hidden name or a file name.
      */
     private static final Pattern FOLDER = Pattern.compile("[a-z0-9_-]+");
+    /** The theme's font files (fonts): only in this folder, and only these names. */
+    static final String FONTS = "fonts";
+    private static final Pattern FONT = Pattern.compile("[A-Za-z0-9_.-]+\\.(ttf|otf)", Pattern.CASE_INSENSITIVE);
 
     private ThemeFiles() {}
 
@@ -33,6 +36,7 @@ final class ThemeFiles {
         if (segments.size() == 2 && folder(segments.get(0)) && collectionImage(segments.get(1))) {
             return segments.get(0) + "/" + segments.get(1);
         }
+        if (segments.size() == 2 && FONTS.equals(segments.get(0)) && font(segments.get(1))) return FONTS + "/" + segments.get(1);
         return null;
     }
 
@@ -47,5 +51,9 @@ final class ThemeFiles {
 
     static boolean collectionImage(String name) {
         return name != null && !name.startsWith(".") && IMAGE.matcher(name).matches();
+    }
+
+    static boolean font(String name) {
+        return name != null && !name.startsWith(".") && FONT.matcher(name).matches();
     }
 }

@@ -78,8 +78,8 @@ if (Test-Path $wallpapers -PathType Container) {
 Get-ChildItem $Theme -Directory | Where-Object { $_.Name -ne 'wallpapers' } | ForEach-Object {
     $name = $_.Name
     if ($name -cnotmatch '^[a-z0-9_-]+$') { Write-Warning "skipping folder ${name}: use lower-case letters, digits, - and _"; return }
-    & $py -I tv.py "mkdir -p $dir/$name 2>/dev/null; rm -f $dir/$name/*.jpg $dir/$name/*.jpeg $dir/$name/*.png $dir/$name/*.webp $dir/$name/*.JPG $dir/$name/*.JPEG $dir/$name/*.PNG $dir/$name/*.WEBP 2>/dev/null; content delete --uri $uri/$name 2>/dev/null" | Out-Null
-    Get-ChildItem $_.FullName -File | Where-Object { $_.Extension -match '^\.(jpg|jpeg|png|webp)$' } | ForEach-Object {
+    & $py -I tv.py "mkdir -p $dir/$name 2>/dev/null; rm -f $dir/$name/*.jpg $dir/$name/*.jpeg $dir/$name/*.png $dir/$name/*.webp $dir/$name/*.JPG $dir/$name/*.JPEG $dir/$name/*.PNG $dir/$name/*.WEBP $dir/$name/*.ttf $dir/$name/*.otf $dir/$name/*.TTF $dir/$name/*.OTF 2>/dev/null; content delete --uri $uri/$name 2>/dev/null" | Out-Null
+    Get-ChildItem $_.FullName -File | Where-Object { $_.Extension -match '^\.(jpg|jpeg|png|webp)$' -or ($name -eq 'fonts' -and $_.Extension -match '^\.(ttf|otf)$') } | ForEach-Object {
         if ($_.Name -notmatch '^[A-Za-z0-9_.-]+$') { Write-Warning "skipping $name/$($_.Name): use letters, digits, ., - and _"; return }
         & $py -I b64push.py $_.FullName (Stage "$name/$($_.Name)")
         & $py -I tv.py (Put "$name/$($_.Name)") | Out-Null

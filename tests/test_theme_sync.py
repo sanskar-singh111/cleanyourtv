@@ -45,7 +45,8 @@ class PlanTest(unittest.TestCase):
         (self.theme / "config.json").write_text("{}")
         (self.theme / "wallpaper.png").write_bytes(b"wall")
         for folder, files in {"logos": ["a.png", "b.png", "notes.txt"], "wallpapers": ["w.jpg", "captions.txt"],
-                              "Bad Folder": ["x.png"], "moods": ["bad name.jpg", "p.jpg"]}.items():
+                              "Bad Folder": ["x.png"], "moods": ["bad name.jpg", "p.jpg", "stray.ttf"],
+                              "fonts": ["clock.ttf", "Line.OTF", "notes.txt"]}.items():
             (self.theme / folder).mkdir()
             for f in files:
                 (self.theme / folder / f).write_bytes(f.encode())
@@ -56,8 +57,8 @@ class PlanTest(unittest.TestCase):
 
     def test_files_are_the_ones_theme_sh_sends(self):
         self.assertEqual(list(sync.theme_files(str(self.theme))),
-                         ["config.json", "wallpaper.png", "wallpapers/w.jpg", "logos/a.png", "logos/b.png",
-                          "moods/p.jpg", "wallpapers/captions.txt"])
+                         ["config.json", "wallpaper.png", "wallpapers/w.jpg", "fonts/Line.OTF", "fonts/clock.ttf", "logos/a.png",
+                          "logos/b.png", "moods/p.jpg", "wallpapers/captions.txt"])
 
     def test_only_changed_files_are_sent(self):
         local = sync.theme_files(str(self.theme))
@@ -75,6 +76,12 @@ class PlanTest(unittest.TestCase):
         changed, stale = sync.plan(local, remote)
         self.assertEqual(changed, [])
         self.assertEqual(stale, ["logos/old.png", "wallpaper.jpg"])
+
+    def test_fonts_are_managed_only_in_their_folder(self):
+        self.assertTrue(sync.managed("fonts/old.ttf"))
+        self.assertTrue(sync.managed("fonts/Old.OTF"))
+        self.assertFalse(sync.managed("logos/old.ttf"))
+        self.assertFalse(sync.managed("fonts/notes.txt"))
 
     def test_an_unknown_tv_gets_everything(self):
         local = sync.theme_files(str(self.theme))

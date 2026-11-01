@@ -314,6 +314,11 @@ final class Config {
     final boolean glassSweep;
     /** weather_scene: what the weather does to the scene wallpaper; null when off. */
     final WeatherLooks weatherScene;
+    /** fonts: the theme's own fonts; empty when off. */
+    final ThemeFonts fonts;
+    /** wake_animation: Home wakes with the dock rising on a spring, and wake_animation_speed in percent. */
+    final boolean wakeAnimation;
+    final int wakeAnimationSpeed;
     /** top_buttons: false hides the buttons at the top right. */
     final boolean topButtons;
 
@@ -342,7 +347,8 @@ final class Config {
                    Map<String, File> scene, boolean bigClock, int bigClockSize, boolean keepWatching, String keepWatchingHeading,
                    boolean iconDock, int iconDockSize, Map<String, File> dockIcons, int bigClockTop, boolean dockCentered,
                    int glassIntensity, File glassStrip, boolean topButtons, int bigClockOpacity, int dockTransparency,
-                   File bigClockGlass, File glassRim, int glassShine, boolean glassSweep, WeatherLooks weatherScene) {
+                   File bigClockGlass, File glassRim, int glassShine, boolean glassSweep, WeatherLooks weatherScene,
+                   ThemeFonts fonts, boolean wakeAnimation, int wakeAnimationSpeed) {
         this.scene = Collections.unmodifiableMap(scene);
         this.bigClock = bigClock;
         this.bigClockSize = bigClockSize;
@@ -358,6 +364,9 @@ final class Config {
         this.glassRim = glassRim;
         this.glassShine = glassShine;
         this.glassSweep = glassSweep;
+        this.fonts = fonts;
+        this.wakeAnimation = wakeAnimation;
+        this.wakeAnimationSpeed = wakeAnimationSpeed;
         this.weatherScene = scene.isEmpty() || weatherCity.isEmpty() ? null : weatherScene;
         this.dockCentered = dockCentered;
         this.glassIntensity = glassStrip == null ? 0 : glassIntensity;
@@ -626,6 +635,17 @@ final class Config {
         String glassRim = res.getString(R.string.glass_rim);
         int glassShine = res.getInteger(R.integer.glass_shine);
         boolean glassSweep = res.getBoolean(R.bool.glass_sweep);
+        boolean wakeAnimation = res.getBoolean(R.bool.wake_animation);
+        int wakeAnimationSpeed = res.getInteger(R.integer.wake_animation_speed);
+        JSONObject fonts = null;
+        String fontsText = res.getString(R.string.fonts).trim();
+        if (!fontsText.isEmpty()) {
+            try {
+                fonts = new JSONObject(fontsText);
+            } catch (Exception e) {
+                Log.w(TAG, "fonts isn't JSON: " + e);
+            }
+        }
         JSONObject weatherScene = null;
         String weatherSceneText = res.getString(R.string.weather_scene).trim();
         if (!weatherSceneText.isEmpty()) {
@@ -771,6 +791,9 @@ final class Config {
             glassRim = string(json, "glass_rim", glassRim);
             glassShine = integer(json, "glass_shine", glassShine, 0, 100);
             glassSweep = json.optBoolean("glass_sweep", glassSweep);
+            wakeAnimation = bool(json, "wake_animation", wakeAnimation);
+            wakeAnimationSpeed = integer(json, "wake_animation_speed", wakeAnimationSpeed, 50, 200);
+            if (json.has("fonts")) fonts = json.optJSONObject("fonts");
             if (json.has("weather_scene")) weatherScene = json.optJSONObject("weather_scene");
             topButtons = bool(json, "top_buttons", topButtons);
         }
@@ -851,7 +874,8 @@ final class Config {
                 iconDock, clamp(iconDockSize, 40, 100), themeFiles(dir, packageMap(dockIcons)), clamp(bigClockTop, 5, 40),
                 "center".equals(dockAlign), clamp(glassIntensity, 0, 100), iconDock ? themeFile(dir, glassStrip) : null, topButtons,
                 clamp(bigClockOpacity, 30, 100), clamp(dockTransparency, 0, 100), bigClock ? themeFile(dir, bigClockGlass) : null,
-                iconDock ? themeFile(dir, glassRim) : null, clamp(glassShine, 0, 100), glassSweep, WeatherLooks.parse(weatherScene, dir));
+                iconDock ? themeFile(dir, glassRim) : null, clamp(glassShine, 0, 100), glassSweep, WeatherLooks.parse(weatherScene, dir),
+                new ThemeFonts(fonts, dir), wakeAnimation, clamp(wakeAnimationSpeed, 50, 200));
     }
 
     /** The deck as read from a theme: its titles, and its moods pointing at them by position. */
@@ -1179,6 +1203,15 @@ final class Config {
         String[] parts = path.trim().split("/", -1);
         if (parts.length > 2 || parts.length == 2 && !ThemeFiles.folder(parts[0])) return null;
         if (!ThemeFiles.collectionImage(parts[parts.length - 1])) return null;
+        File f = new File(dir, path.trim());
+        return f.isFile() && f.length() > 0 ? f : null;
+    }
+
+    /** A font in the theme's fonts/ folder, or null if the path isn't one or the file isn't there. */
+    static File fontFile(File dir, String path) {
+        if (dir == null || path == null) return null;
+        String[] parts = path.trim().split("/", -1);
+        if (parts.length != 2 || !ThemeFiles.FONTS.equals(parts[0]) || !ThemeFiles.font(parts[1])) return null;
         File f = new File(dir, path.trim());
         return f.isFile() && f.length() > 0 ? f : null;
     }

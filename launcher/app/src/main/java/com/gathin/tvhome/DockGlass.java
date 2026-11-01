@@ -72,6 +72,8 @@ final class DockGlass {
     private final ImageView light;
     private boolean sweeping;
     private final Runnable sweepNext = this::crossOnce;
+    /** wake_animation: how much of the panel shows; the look's crossfade works under it. */
+    private float wakeAlpha = 1f;
 
     /** Puts the empty panel under the dock in `frame`; `scene` is the full-screen view the strip lines up with. */
     DockGlass(Context context, ViewGroup frame, ViewGroup scene, File strip, File rim, int intensity, int transparency, int shine, boolean sweep) {
@@ -245,7 +247,7 @@ final class DockGlass {
     private void show(Bitmap baked) {
         if (baked == null) return;
         view.setImageBitmap(baked);
-        view.animate().alpha(1f).setDuration(220).start();
+        view.animate().alpha(wakeAlpha).setDuration(220).start();
     }
 
     /** weather_scene: the panel made from another look's pictures, baked off the main thread for glassFade to bring in. */
@@ -275,10 +277,10 @@ final class DockGlass {
     void glassFade(float amount) {
         nextFade = amount;
         if (nextBaked == null) return;
-        next.setAlpha(amount);
+        next.setAlpha(amount * wakeAlpha);
         if (amount < 1f) return;
         view.setImageBitmap(nextBaked);
-        view.setAlpha(1f);
+        view.setAlpha(wakeAlpha);
         nextBaked = null;
         next.setVisibility(View.GONE);
         next.setImageBitmap(null);
@@ -347,6 +349,19 @@ final class DockGlass {
         } finally {
             if (in != null) in.recycle();
             if (bent != null) bent.recycle();
+        }
+    }
+
+    /** wake_animation: the panel moves with the dock. A frame only changes properties of views already drawn. */
+    void wake(float alpha, float y) {
+        wakeAlpha = alpha;
+        view.setAlpha(alpha);
+        view.setTranslationY(y);
+        next.setAlpha(nextFade * alpha);
+        next.setTranslationY(y);
+        if (lightBox != null) {
+            lightBox.setAlpha(alpha);
+            lightBox.setTranslationY(y);
         }
     }
 

@@ -103,22 +103,25 @@ if [ -d "$THEME/wallpapers" ]; then
 fi
 # The theme's own picture folders, such as logos/ for dock_logos or wallpaper/ for a "wallpaper" path: each is
 # cleared on the TV and pushed again, so a renamed or removed picture leaves nothing stale behind. Folder names
-# are lower-case letters, digits, - and _ (the launcher refuses others); anything else in the theme is skipped.
+# are lower-case letters, digits, - and _ (the launcher refuses others); anything else in the theme is skipped. fonts/ holds
+# the theme's .ttf and .otf files the same way.
 for FOLDER in "$THEME"/*/; do
   FOLDER="${FOLDER%/}"
   NAME=$(basename "$FOLDER")
   [ "$NAME" = wallpapers ] && continue
   [[ "$NAME" =~ ^[a-z0-9_-]+$ ]] || { echo "skipping folder $NAME: use lower-case letters, digits, - and _" >&2; continue; }
-  tv "mkdir -p $DIR/$NAME 2>/dev/null; rm -f $DIR/$NAME/*.jpg $DIR/$NAME/*.jpeg $DIR/$NAME/*.png $DIR/$NAME/*.webp $DIR/$NAME/*.JPG $DIR/$NAME/*.JPEG $DIR/$NAME/*.PNG $DIR/$NAME/*.WEBP 2>/dev/null; content delete --uri $URI/$NAME 2>/dev/null" >/dev/null
+  tv "mkdir -p $DIR/$NAME 2>/dev/null; rm -f $DIR/$NAME/*.jpg $DIR/$NAME/*.jpeg $DIR/$NAME/*.png $DIR/$NAME/*.webp $DIR/$NAME/*.JPG $DIR/$NAME/*.JPEG $DIR/$NAME/*.PNG $DIR/$NAME/*.WEBP $DIR/$NAME/*.ttf $DIR/$NAME/*.otf $DIR/$NAME/*.TTF $DIR/$NAME/*.OTF 2>/dev/null; content delete --uri $URI/$NAME 2>/dev/null" >/dev/null
   for IMAGE in "$FOLDER"/*; do
     [ -f "$IMAGE" ] || continue
     case "$IMAGE" in
-      *.jpg|*.jpeg|*.png|*.webp|*.JPG|*.JPEG|*.PNG|*.WEBP)
-        FILE=$(basename "$IMAGE")
-        [[ "$FILE" =~ ^[A-Za-z0-9_.-]+$ ]] || { echo "skipping $NAME/$FILE: use letters, digits, ., - and _" >&2; continue; }
-        "$PY" -I b64push.py "$IMAGE" "$(stage "$NAME/$FILE")"
-        tv "$(put "$NAME/$FILE")" >/dev/null ;;
+      *.ttf|*.otf|*.TTF|*.OTF) [ "$NAME" = fonts ] || continue ;;
+      *.jpg|*.jpeg|*.png|*.webp|*.JPG|*.JPEG|*.PNG|*.WEBP) ;;
+      *) continue ;;
     esac
+    FILE=$(basename "$IMAGE")
+    [[ "$FILE" =~ ^[A-Za-z0-9_.-]+$ ]] || { echo "skipping $NAME/$FILE: use letters, digits, ., - and _" >&2; continue; }
+    "$PY" -I b64push.py "$IMAGE" "$(stage "$NAME/$FILE")"
+    tv "$(put "$NAME/$FILE")" >/dev/null
   done
 done
 # The collection's names (wallpaper_captions); a theme without them leaves no stale names behind.

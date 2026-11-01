@@ -31,6 +31,7 @@ DIR = f"/sdcard/Android/data/{PKG}/files"
 URI = f"content://{PKG}.theme"
 TMP = "/data/local/tmp/cyt-theme"
 IMAGES = (".jpg", ".jpeg", ".png", ".webp", ".JPG", ".JPEG", ".PNG", ".WEBP")
+FONTS = (".ttf", ".otf", ".TTF", ".OTF")
 FOLDER_RE = re.compile(r"[a-z0-9_-]+")
 FILE_RE = re.compile(r"[A-Za-z0-9_.-]+")
 CHUNK = 48 * 1024
@@ -83,7 +84,7 @@ def theme_files(theme):
             continue
         for f in sorted(os.listdir(path)):
             full = os.path.join(path, f)
-            if os.path.isfile(full) and f.endswith(IMAGES) and FILE_RE.fullmatch(f):
+            if os.path.isfile(full) and carried(folder, f) and FILE_RE.fullmatch(f):
                 out[f"{folder}/{f}"] = full
     captions = os.path.join(theme, "wallpapers", "captions.txt")
     if os.path.isfile(captions):
@@ -91,12 +92,17 @@ def theme_files(theme):
     return out
 
 
+def carried(folder, name):
+    """A picture in any of the theme's folders, or a font in fonts/."""
+    return name.endswith(IMAGES) or folder == "fonts" and name.endswith(FONTS)
+
+
 def managed(name):
     """A file on the TV that a theme push owns, so it may be deleted when the theme no longer has it."""
     if name in ("wallpaper.jpg", "wallpaper.png", "wallpapers/captions.txt"):
         return True
     folder, _, f = name.partition("/")
-    return bool(f) and "/" not in f and FOLDER_RE.fullmatch(folder) is not None and f.endswith(IMAGES)
+    return bool(f) and "/" not in f and FOLDER_RE.fullmatch(folder) is not None and carried(folder, f)
 
 
 def md5(path):
