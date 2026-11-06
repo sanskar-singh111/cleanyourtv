@@ -155,6 +155,8 @@ final class Config {
     /** Whether the key services request key filtering (config.xml or theme key_filter); false keeps key
      *  auto-repeat working on firmware whose AccessibilityInputFilter drops repeats (TCL Android 12). */
     final boolean keyFilter;
+    /** key_filter_home_only: HomeKeyService filters keys only while this launcher is in front, so held volume repeats in apps. */
+    final boolean keyFilterHomeOnly;
     /** Stock launcher whose home screen is sent back here if the firmware revives it (config.xml stock_home_redirect). */
     final String stockHomeRedirect;
     /** The Settings button opens the quick settings panel instead of the TV's Settings (settings_key_panel). */
@@ -354,7 +356,8 @@ final class Config {
                    int glassIntensity, File glassStrip, boolean topButtons, int bigClockOpacity, int dockTransparency,
                    File bigClockGlass, File glassRim, int glassShine, boolean glassSweep, WeatherLooks weatherScene,
                    ThemeFonts fonts, boolean wakeAnimation, int wakeAnimationSpeed,
-                   boolean idleKey, int[] idleKeyScancodes, int idleKeyPresses, String idleKeyApp, boolean idleKeyOnly) {
+                   boolean idleKey, int[] idleKeyScancodes, int idleKeyPresses, String idleKeyApp, boolean idleKeyOnly,
+                   boolean keyFilterHomeOnly) {
         this.scene = Collections.unmodifiableMap(scene);
         this.bigClock = bigClock;
         this.bigClockSize = bigClockSize;
@@ -378,6 +381,7 @@ final class Config {
         this.idleKeyPresses = idleKeyPresses;
         this.idleKeyApp = idleKeyApp;
         this.idleKeyOnly = idleKeyOnly;
+        this.keyFilterHomeOnly = keyFilterHomeOnly;
         this.weatherScene = scene.isEmpty() || weatherCity.isEmpty() ? null : weatherScene;
         this.dockCentered = dockCentered;
         this.glassIntensity = glassStrip == null ? 0 : glassIntensity;
@@ -653,6 +657,7 @@ final class Config {
         int idleKeyPresses = res.getInteger(R.integer.idle_key_presses);
         String idleKeyApp = res.getString(R.string.idle_key_app);
         boolean idleKeyOnly = res.getBoolean(R.bool.idle_key_only);
+        boolean keyFilterHomeOnly = res.getBoolean(R.bool.key_filter_home_only);
         JSONObject fonts = null;
         String fontsText = res.getString(R.string.fonts).trim();
         if (!fontsText.isEmpty()) {
@@ -814,6 +819,7 @@ final class Config {
             idleKeyPresses = integer(json, "idle_key_presses", idleKeyPresses, IdleKey.MIN_PRESSES, IdleKey.MAX_PRESSES);
             idleKeyApp = string(json, "idle_key_app", idleKeyApp);
             idleKeyOnly = bool(json, "idle_key_only", idleKeyOnly);
+            keyFilterHomeOnly = bool(json, "key_filter_home_only", keyFilterHomeOnly);
             if (json.has("fonts")) fonts = json.optJSONObject("fonts");
             if (json.has("weather_scene")) weatherScene = json.optJSONObject("weather_scene");
             topButtons = bool(json, "top_buttons", topButtons);
@@ -897,7 +903,8 @@ final class Config {
                 clamp(bigClockOpacity, 30, 100), clamp(dockTransparency, 0, 100), bigClock ? themeFile(dir, bigClockGlass) : null,
                 iconDock ? themeFile(dir, glassRim) : null, clamp(glassShine, 0, 100), glassSweep, WeatherLooks.parse(weatherScene, dir),
                 new ThemeFonts(fonts, dir), wakeAnimation, clamp(wakeAnimationSpeed, 50, 200),
-                idleKey, idleKeyScancodes, clamp(idleKeyPresses, IdleKey.MIN_PRESSES, IdleKey.MAX_PRESSES), idleKeyApp.trim(), idleKeyOnly);
+                idleKey, idleKeyScancodes, clamp(idleKeyPresses, IdleKey.MIN_PRESSES, IdleKey.MAX_PRESSES), idleKeyApp.trim(), idleKeyOnly,
+                keyFilterHomeOnly);
     }
 
     /** The deck as read from a theme: its titles, and its moods pointing at them by position. */

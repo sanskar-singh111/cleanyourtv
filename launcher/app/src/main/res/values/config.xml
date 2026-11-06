@@ -99,6 +99,12 @@
          filters keys, so long-pressing volume only steps once: set false and the service keeps running but
          stops filtering, which brings repeat back at the price of the remote buttons below doing nothing. -->
     <bool name="key_filter">true</bool>
+    <!-- true: HomeKeyService filters keys only while this launcher is in front, and drops the filter while any other app
+         is. Android 11's accessibility input filter hands volume to the window manager before any service sees it, which
+         stops the held-key repeat on remotes that send none of their own (Xiaomi MiTV-MOOQ3): with this on, volume held
+         in an app or Live TV steps on as usual, while the service's buttons (idle_key, app_keys, Settings) answer on Home
+         only and do the firmware's own thing elsewhere. A theme can set it: "key_filter_home_only". -->
+    <bool name="key_filter_home_only">false</bool>
 
     <!-- Vendor source numbers for the Inputs menu, "HW<n>=<number>" by the framework input id's last part
          (`tools/tv.py 'dumpsys tv_input'` lists them). A mapped input opens by sending input_action with the

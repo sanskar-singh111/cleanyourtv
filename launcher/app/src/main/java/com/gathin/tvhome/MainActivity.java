@@ -129,6 +129,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private boolean faded;
     /** Between onResume and onPause. */
     private volatile boolean resumedHome;
+    /** Home is resumed, for HomeKeyService's key_filter_home_only when it connects with no window change to go by. */
+    static volatile boolean inFront;
     private int wakeKey = KeyEvent.KEYCODE_UNKNOWN;
     /** screensaver: what the faded Home shows (Screensaver), its dim, fade, slides and their pictures. */
     private String saverMode = Screensaver.WALLPAPER;
@@ -1144,6 +1146,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         }
         restartIdleClock();
         resumedHome = true;
+        inFront = true;
         updateSweep();
         if (wakeMotion != null && !warmedUp) root.postDelayed(warmUpMotion, WARM_UP_MS);
         promptsPaused = false;
@@ -1621,6 +1624,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     protected void onPause() {
         super.onPause();
         resumedHome = false;
+        inFront = false;
         updateSweep();
         root.removeCallbacks(showIdleClock);
         root.removeCallbacks(fadeHome);

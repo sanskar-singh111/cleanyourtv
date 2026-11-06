@@ -4,6 +4,7 @@ import android.accessibilityservice.AccessibilityService;
 import android.accessibilityservice.AccessibilityServiceInfo;
 import android.content.ActivityNotFoundException;
 import android.content.BroadcastReceiver;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
@@ -31,6 +32,10 @@ import java.util.Set;
  * that launcher on again after it was disabled (XGIMI's xrmservice does, on its own remote keys).
  *
  * With idle_key on, quick presses of one button show the idle screen from anywhere; idle_key_only leaves every other key alone.
+ *
+ * With key_filter_home_only it filters keys only while this launcher is in front. Android 11 sends volume to the window
+ * manager before any filtering service sees it, so a held volume button steps once on remotes that send no repeats of
+ * their own; dropping the filter while an app is in front gives the app its held volume back.
  *
  * Enable over adb:
  *   settings put secure enabled_accessibility_services com.gathin.tvhome/.HomeKeyService
@@ -62,6 +67,8 @@ public class HomeKeyService extends AccessibilityService {
 
     /** Waits for the user to unlock when Android binds this service at boot; null once the config is read. */
     private BroadcastReceiver unlockReceiver;
+    /** key_filter_home_only. */
+    private boolean homeOnly;
     /** The stock launcher's HOME activities (stock_home_redirect), disabled ones included. */
     private final Set<String> stockHome = new HashSet<>();
 
@@ -124,12 +131,18 @@ public class HomeKeyService extends AccessibilityService {
                 stockHome.add(ri.activityInfo.name);
             }
         }
-        // home_key_service.xml subscribes to no events, so the redirect asks for window changes only when it is on.
+        homeOnly = config.keyFilter && config.keyFilterHomeOnly;
+        // home_key_service.xml subscribes to no events, so the redirect and key_filter_home_only ask for window changes
+        // only when they are on.
         AccessibilityServiceInfo info = getServiceInfo();
-        if (info != null && !stockHome.isEmpty()) {
+        if (info != null && (!stockHome.isEmpty() || homeOnly)) {
             info.eventTypes |= AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED;
             setServiceInfo(info);
         }
+        // Android keeps the flags this service last set across a rebind, so set the filter again: on, or with
+        // key_filter_home_only, on only while Home is in front, as the service can (re)connect with an app there after
+        // an install or a theme push. Process importance can't tell, as the accessibility binding keeps it foreground.
+        if (config.keyFilter) setFiltering(!homeOnly || MainActivity.inFront);
         holdAppKeys = RemoteKeys.parseHoldAppKeys(config.appKeys);
         holdAppScancodes = RemoteKeys.parseHoldAppScancodes(config.appKeys);
         idleKey = config.idleKey ? new IdleKey(config.idleKeyPresses) : null;
@@ -216,13 +229,38 @@ public class HomeKeyService extends AccessibilityService {
 
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
+        if (event.getEventType() != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return;
+        if (homeOnly) followFront(event);
         // stock_home_redirect: the firmware turned the stock launcher back on and its home screen came up.
-        if (stockHome.isEmpty() || event.getEventType() != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return;
+        if (stockHome.isEmpty()) return;
         CharSequence cls = event.getClassName();
         if (cls != null && stockHome.contains(cls.toString())) {
             startActivity(new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME).setPackage(getPackageName())
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED));
         }
+    }
+
+    /**
+     * key_filter_home_only: filter keys while one of this launcher's screens is in front, and not while another app's is.
+     * Only activities count: the volume panel, toasts and dialogs come and go over Home without changing what is in front.
+     */
+    private void followFront(AccessibilityEvent event) {
+        CharSequence pkg = event.getPackageName(), cls = event.getClassName();
+        if (pkg == null || cls == null) return;
+        try {
+            getPackageManager().getActivityInfo(new ComponentName(pkg.toString(), cls.toString()), 0);
+        } catch (PackageManager.NameNotFoundException notAnActivity) {
+            return;
+        }
+        setFiltering(getPackageName().contentEquals(pkg));
+    }
+
+    private void setFiltering(boolean on) {
+        AccessibilityServiceInfo info = getServiceInfo();
+        if (info == null || on == ((info.flags & AccessibilityServiceInfo.FLAG_REQUEST_FILTER_KEY_EVENTS) != 0)) return;
+        if (on) info.flags |= AccessibilityServiceInfo.FLAG_REQUEST_FILTER_KEY_EVENTS;
+        else info.flags &= ~AccessibilityServiceInfo.FLAG_REQUEST_FILTER_KEY_EVENTS;
+        setServiceInfo(info);
     }
 
     @Override
