@@ -24,6 +24,10 @@ import java.io.IOException;
  *   content delete --uri content://com.gathin.tvhome.theme/wallpapers      (every image in the collection)
  *   content delete --uri content://com.gathin.tvhome.theme/logos           (every image in a theme folder)
  *   content write --uri content://com.gathin.tvhome.theme/fonts/clock.ttf < /data/local/tmp/clock.ttf
+ *   content read --uri content://com.gathin.tvhome.theme/app_art/com.netflix.ninja.png > netflix.png
+ *
+ * app_art/ is read-only and separate from the theme: an app's banner or icon as its Home tile shows it, as a PNG,
+ * for apps Home shows ({@link AppArt}). Every other mode, a delete or a name that isn't a package is refused there.
  *
  * A write never truncates the real file: it goes to a temporary file in the same folder, which is synced and renamed
  * into place only when the writer closes it cleanly ({@link ThemeWrites}). A write cut short leaves the old file whole.
@@ -57,6 +61,7 @@ public class ThemeProvider extends ContentProvider {
 
     @Override
     public ParcelFileDescriptor openFile(Uri uri, String mode) throws FileNotFoundException {
+        if (AppArt.isFolder(uri.getPathSegments())) return appArt(uri, mode);
         File f = file(uri);
         writes.awaitDone(f, WAIT_MS);
         if (mode.contains("w")) {
@@ -84,8 +89,23 @@ public class ThemeProvider extends ContentProvider {
         return ParcelFileDescriptor.open(f, ParcelFileDescriptor.MODE_READ_ONLY);
     }
 
+    /** app_art/<package>.png, read-only: the cached picture, drawn first if there is none for the app's version. */
+    private ParcelFileDescriptor appArt(Uri uri, String mode) throws FileNotFoundException {
+        String pkg = AppArt.packageOf(uri.getPathSegments());
+        if (pkg == null || !"r".equals(mode)) throw new FileNotFoundException(String.valueOf(uri));
+        File f;
+        try {
+            f = AppArt.get(getContext(), pkg);
+        } catch (IOException | RuntimeException e) {
+            throw new FileNotFoundException(String.valueOf(uri));
+        }
+        if (f == null) throw new FileNotFoundException(String.valueOf(uri));
+        return ParcelFileDescriptor.open(f, ParcelFileDescriptor.MODE_READ_ONLY);
+    }
+
     @Override
     public int delete(Uri uri, String selection, String[] selectionArgs) {
+        if (AppArt.isFolder(uri.getPathSegments())) return 0;
         File dir = Config.dir(getContext());
         if (dir != null && ThemeFiles.isCollection(uri.getPathSegments())) {
             String folder = uri.getPathSegments().get(0);

@@ -408,14 +408,23 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         return apps + DOCK_ACTIONS;
     }
 
-    /** A banner_* drawable bundled with the launcher, or null for none or a name that is not one. */
     private Drawable bundledBanner(String name) {
+        return bundledBanner(ctx, name);
+    }
+
+    /** A banner_* drawable bundled with the launcher, or null for none or a name that is not one. Also AppArt's. */
+    static Drawable bundledBanner(Context ctx, String name) {
         if (name == null || !name.startsWith("banner_")) return null;
         int id = ctx.getResources().getIdentifier(name, "drawable", ctx.getPackageName());
         return id != 0 ? ctx.getDrawable(id) : null;
     }
 
     private Drawable loadBanner(PackageManager pm, ResolveInfo ri) {
+        return loadBanner(ctx, pm, ri);
+    }
+
+    /** The app's own banner, or null when it has none or only a square one. Also AppArt's. */
+    static Drawable loadBanner(Context ctx, PackageManager pm, ResolveInfo ri) {
         int id = ri.activityInfo.banner;
         if (id == 0) id = ri.activityInfo.applicationInfo.banner;
         Drawable banner = null;

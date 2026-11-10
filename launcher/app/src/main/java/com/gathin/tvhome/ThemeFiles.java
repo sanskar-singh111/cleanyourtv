@@ -45,8 +45,9 @@ final class ThemeFiles {
         return segments != null && segments.size() == 1 && folder(segments.get(0));
     }
 
+    /** app_art is AppArt's read-only folder, never a theme's: nothing is written or deleted under that name. */
     static boolean folder(String name) {
-        return name != null && FOLDER.matcher(name).matches();
+        return name != null && !AppArt.FOLDER.equals(name) && FOLDER.matcher(name).matches();
     }
 
     static boolean collectionImage(String name) {
