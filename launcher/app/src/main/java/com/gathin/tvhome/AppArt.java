@@ -15,7 +15,9 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.regex.Pattern;
 
 /**
@@ -28,6 +30,13 @@ import java.util.regex.Pattern;
  * hidden_apps or taken off Home, or an app added from the App library. Each is drawn once per app version and kept
  * in the launcher's cache folder (cache/app_art/<package>@<versionCode>@<lastUpdateTime>.png), so asking again only
  * opens a file; a newer version of the app draws a new one and the old one is removed.
+ *
+ * The same apps' labels, read-only, one row each (package, label), in package order:
+ *
+ *   content query --uri content://<app id>.theme/app_labels
+ *
+ * Each label is the app's own, in the TV's language, cleaned as a tile's name is (Cards.cleanLabel): no line breaks,
+ * no bidi controls, at most 40 characters. A theme's app_labels is not applied; the caller has the theme.
  */
 final class AppArt {
     /** The URI folder, reserved: ThemeFiles never lets a theme write or delete anything under this name. */
@@ -39,7 +48,53 @@ final class AppArt {
     /** A banner fits in 400 x 225 px (a 1080p tile is 360 x 202, and focus zooms it); an icon is drawn 128 px square. */
     static final int BANNER_W = 400, BANNER_H = 225, ICON = 128;
 
+    /** The query for the shown apps' labels; anything else the provider is asked to query gets nothing. */
+    static final String LABELS = "app_labels";
+
     private AppArt() {}
+
+    /** True only for exactly app_labels, no more segments. */
+    static boolean isLabels(List<String> segments) {
+        return segments != null && segments.size() == 1 && LABELS.equals(segments.get(0));
+    }
+
+    /** Every app Home shows (as {@link #shown}), by package, with its cleaned label. */
+    static Map<String, String> labels(Context ctx) {
+        PackageManager pm = ctx.getPackageManager();
+        Config cfg = Config.load(ctx);
+        Set<String> added = new HashSet<>(LibraryApps.load(ctx));
+        added.addAll(cfg.libraryApps);
+        Set<String> removed = LibraryApps.loadRemoved(ctx);
+        Map<String, ResolveInfo> tv = new TreeMap<>();
+        for (ResolveInfo ri : pm.queryIntentActivities(
+                new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LEANBACK_LAUNCHER), 0)) {
+            if (ri.activityInfo != null && ri.activityInfo.exported) tv.putIfAbsent(ri.activityInfo.packageName, ri);
+        }
+        Map<String, ResolveInfo> shown = new TreeMap<>();
+        for (Map.Entry<String, ResolveInfo> e : tv.entrySet()) {
+            String pkg = e.getKey();
+            if (LibraryApps.visible(true, cfg.hiddenApps.contains(pkg), added.contains(pkg), removed.contains(pkg))) {
+                shown.put(pkg, e.getValue());
+            }
+        }
+        if (!added.isEmpty()) {
+            for (ResolveInfo ri : pm.queryIntentActivities(
+                    new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER), 0)) {
+                if (ri.activityInfo == null || !ri.activityInfo.exported) continue;
+                String pkg = ri.activityInfo.packageName;
+                if (!added.contains(pkg) || tv.containsKey(pkg)) continue;
+                if (LibraryApps.visible(false, cfg.hiddenApps.contains(pkg), true, removed.contains(pkg))) {
+                    shown.putIfAbsent(pkg, ri);
+                }
+            }
+        }
+        shown.remove(ctx.getPackageName());
+        Map<String, String> out = new TreeMap<>();
+        for (Map.Entry<String, ResolveInfo> e : shown.entrySet()) {
+            out.put(e.getKey(), Cards.cleanLabel(String.valueOf(e.getValue().loadLabel(pm)), e.getKey()));
+        }
+        return out;
+    }
 
     /** True for any URI under app_art/, valid or not: those never reach the theme files. */
     static boolean isFolder(List<String> segments) {

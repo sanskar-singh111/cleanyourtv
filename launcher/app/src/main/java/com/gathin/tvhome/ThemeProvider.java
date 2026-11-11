@@ -3,6 +3,7 @@ package com.gathin.tvhome;
 import android.content.ContentProvider;
 import android.content.ContentValues;
 import android.database.Cursor;
+import android.database.MatrixCursor;
 import android.net.Uri;
 import android.os.Handler;
 import android.os.HandlerThread;
@@ -11,6 +12,7 @@ import android.os.ParcelFileDescriptor;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.util.Map;
 
 /**
  * Lets tools/theme.sh write the theme files into {@link Config#dir} on firmware where the adb shell is
@@ -25,9 +27,11 @@ import java.io.IOException;
  *   content delete --uri content://com.gathin.tvhome.theme/logos           (every image in a theme folder)
  *   content write --uri content://com.gathin.tvhome.theme/fonts/clock.ttf < /data/local/tmp/clock.ttf
  *   content read --uri content://com.gathin.tvhome.theme/app_art/com.netflix.ninja.png > netflix.png
+ *   content query --uri content://com.gathin.tvhome.theme/app_labels
  *
  * app_art/ is read-only and separate from the theme: an app's banner or icon as its Home tile shows it, as a PNG,
  * for apps Home shows ({@link AppArt}). Every other mode, a delete or a name that isn't a package is refused there.
+ * app_labels is the only query: those apps' own labels, one row each. Nothing can be inserted or updated.
  *
  * A write never truncates the real file: it goes to a temporary file in the same folder, which is synced and renamed
  * into place only when the writer closes it cleanly ({@link ThemeWrites}). A write cut short leaves the old file whole.
@@ -130,7 +134,21 @@ public class ThemeProvider extends ContentProvider {
         return true;
     }
     @Override public String getType(Uri uri) { return null; }
-    @Override public Cursor query(Uri uri, String[] p, String s, String[] a, String o) { return null; }
+
+    /** app_labels: package and label of each app Home shows. Every other query gets nothing. */
+    @Override public Cursor query(Uri uri, String[] p, String s, String[] a, String o) {
+        if (!AppArt.isLabels(uri.getPathSegments())) return null;
+        MatrixCursor c = new MatrixCursor(new String[]{"package", "label"});
+        try {
+            for (Map.Entry<String, String> e : AppArt.labels(getContext()).entrySet()) {
+                c.addRow(new Object[]{e.getKey(), e.getValue()});
+            }
+        } catch (RuntimeException e) {
+            c.close();
+            return null;
+        }
+        return c;
+    }
     @Override public Uri insert(Uri uri, ContentValues values) { return null; }
     @Override public int update(Uri uri, ContentValues v, String s, String[] a) { return 0; }
 }

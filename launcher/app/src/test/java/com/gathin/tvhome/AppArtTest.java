@@ -66,4 +66,15 @@ public class AppArtTest {
         assertArrayEquals(new int[]{128, 128}, AppArt.fit(432, 432, 128, 128, true));
         assertArrayEquals(new int[]{400, 225}, AppArt.fit(-1, -1, 400, 225, false));       // a colour fills it
     }
+
+    @Test public void onlyAppLabelsIsAQuery() {
+        assertTrue(AppArt.isLabels(Collections.singletonList("app_labels")));
+        assertFalse(AppArt.isLabels(null));
+        assertFalse(AppArt.isLabels(Collections.<String>emptyList()));
+        assertFalse(AppArt.isLabels(Collections.singletonList("config.json")));
+        assertFalse(AppArt.isLabels(Collections.singletonList("app_labels.txt")));
+        assertFalse(AppArt.isLabels(Arrays.asList("app_labels", "com.netflix.ninja")));
+        assertFalse(AppArt.isLabels(Arrays.asList("app_art", "app_labels")));
+        assertNull("never a theme file", ThemeFiles.path(Collections.singletonList("app_labels")));
+    }
 }
